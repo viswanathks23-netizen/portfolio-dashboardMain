@@ -1,0 +1,611 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Vish — Portfolio Dashboard</title>
+<link href="https://fonts.googleapis.com/css2?family=DM+Mono:wght@300;400;500&family=Syne:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --bg: #0e0f11;
+    --bg2: #141518;
+    --bg3: #1c1e22;
+    --border: rgba(255,255,255,0.07);
+    --border2: rgba(255,255,255,0.12);
+    --text: #f0f0ee;
+    --muted: #7a7a78;
+    --muted2: #4a4a48;
+    --pos: #4ade80;
+    --pos-bg: rgba(74,222,128,0.08);
+    --neg: #f87171;
+    --neg-bg: rgba(248,113,113,0.08);
+    --warn: #fbbf24;
+    --warn-bg: rgba(251,191,36,0.08);
+    --neu: #94a3b8;
+    --accent: #6ee7b7;
+    --accent2: #a78bfa;
+    --font-display: 'Syne', sans-serif;
+    --font-mono: 'DM Mono', monospace;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { background: var(--bg); color: var(--text); font-family: var(--font-mono); font-size: 13px; line-height: 1.6; min-height: 100vh; }
+  
+  /* Header */
+  .header { padding: 28px 32px 20px; border-bottom: 1px solid var(--border); display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 12px; }
+  .header-title { font-family: var(--font-display); font-size: 18px; font-weight: 600; color: var(--text); letter-spacing: -0.02em; }
+  .header-title span { color: var(--accent); }
+  .header-meta { font-size: 11px; color: var(--muted); display: flex; align-items: center; gap: 16px; }
+  .live-dot { width: 6px; height: 6px; border-radius: 50%; background: var(--pos); display: inline-block; margin-right: 5px; animation: pulse 2s infinite; }
+  @keyframes pulse { 0%,100%{opacity:1} 50%{opacity:0.4} }
+  .refresh-btn { background: var(--bg3); border: 1px solid var(--border2); color: var(--muted); padding: 5px 12px; border-radius: 6px; cursor: pointer; font-family: var(--font-mono); font-size: 11px; transition: all 0.15s; }
+  .refresh-btn:hover { color: var(--text); border-color: var(--accent); }
+
+  /* Main layout */
+  .main { padding: 24px 32px; max-width: 1400px; }
+
+  /* Summary cards */
+  .summary-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 12px; margin-bottom: 28px; }
+  @media (max-width: 900px) { .summary-grid { grid-template-columns: repeat(2,1fr); } }
+  @media (max-width: 500px) { .summary-grid { grid-template-columns: 1fr; } .main { padding: 16px; } }
+  .scard { background: var(--bg2); border: 1px solid var(--border); border-radius: 10px; padding: 16px 18px; }
+  .scard-label { font-size: 10px; color: var(--muted); text-transform: uppercase; letter-spacing: 0.08em; margin-bottom: 8px; }
+  .scard-value { font-family: var(--font-display); font-size: 22px; font-weight: 600; color: var(--text); letter-spacing: -0.02em; }
+  .scard-sub { font-size: 11px; color: var(--muted); margin-top: 4px; }
+  .scard-sub.pos { color: var(--pos); }
+  .scard-sub.neg { color: var(--neg); }
+
+  /* Tabs */
+  .tabs { display: flex; gap: 4px; margin-bottom: 20px; flex-wrap: wrap; border-bottom: 1px solid var(--border); padding-bottom: 0; }
+  .tab { padding: 8px 16px; font-size: 12px; font-family: var(--font-mono); color: var(--muted); background: transparent; border: none; cursor: pointer; border-bottom: 2px solid transparent; margin-bottom: -1px; transition: all 0.15s; white-space: nowrap; }
+  .tab:hover { color: var(--text); }
+  .tab.active { color: var(--accent); border-bottom-color: var(--accent); }
+  .tab-badge { font-size: 10px; background: var(--bg3); padding: 1px 6px; border-radius: 10px; margin-left: 5px; color: var(--muted); }
+
+  /* Section */
+  .section { display: none; }
+  .section.active { display: block; }
+  .section-summary { display: flex; gap: 24px; font-size: 12px; color: var(--muted); margin-bottom: 16px; flex-wrap: wrap; }
+  .section-summary strong { color: var(--text); }
+  .section-summary .pos { color: var(--pos); }
+  .section-summary .neg { color: var(--neg); }
+
+  /* Table */
+  .table-wrap { overflow-x: auto; border: 1px solid var(--border); border-radius: 10px; }
+  table { width: 100%; border-collapse: collapse; }
+  thead th { font-size: 10px; text-transform: uppercase; letter-spacing: 0.07em; color: var(--muted); padding: 10px 14px; text-align: left; border-bottom: 1px solid var(--border); font-weight: 400; background: var(--bg2); }
+  thead th.r { text-align: right; }
+  tbody td { padding: 11px 14px; border-bottom: 1px solid var(--border); color: var(--text); vertical-align: middle; }
+  tbody td.r { text-align: right; font-variant-numeric: tabular-nums; }
+  tbody tr:last-child td { border-bottom: none; }
+  tbody tr:hover td { background: rgba(255,255,255,0.02); }
+  .instrument-name { font-weight: 500; font-size: 13px; }
+  .instrument-sub { font-size: 10px; color: var(--muted); margin-top: 1px; }
+  .price-live { font-size: 12px; color: var(--accent); }
+  .price-live.loading { color: var(--muted2); }
+
+  /* Pills */
+  .pill { display: inline-block; font-size: 10px; padding: 2px 8px; border-radius: 4px; font-weight: 500; font-family: var(--font-mono); }
+  .pill-pos { background: var(--pos-bg); color: var(--pos); }
+  .pill-neg { background: var(--neg-bg); color: var(--neg); }
+  .pill-neu { background: var(--bg3); color: var(--neu); }
+  .pill-warn { background: var(--warn-bg); color: var(--warn); }
+
+  /* Risk cards */
+  .risk-list { display: flex; flex-direction: column; gap: 10px; }
+  .risk-card { background: var(--bg2); border: 1px solid var(--border); border-radius: 10px; padding: 14px 16px; border-left: 3px solid transparent; }
+  .risk-card.high { border-left-color: var(--neg); }
+  .risk-card.med { border-left-color: var(--warn); }
+  .risk-card.low { border-left-color: var(--pos); }
+  .risk-header { display: flex; align-items: center; gap: 10px; margin-bottom: 6px; }
+  .risk-tag { font-size: 10px; padding: 2px 7px; border-radius: 4px; font-weight: 500; }
+  .risk-tag.high { background: var(--neg-bg); color: var(--neg); }
+  .risk-tag.med { background: var(--warn-bg); color: var(--warn); }
+  .risk-tag.low { background: var(--pos-bg); color: var(--pos); }
+  .risk-title { font-size: 13px; font-weight: 500; color: var(--text); }
+  .risk-desc { font-size: 12px; color: var(--muted); line-height: 1.6; }
+
+  /* Allocation */
+  .alloc-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 24px; margin-top: 8px; }
+  @media (max-width: 700px) { .alloc-grid { grid-template-columns: 1fr; } }
+  .alloc-card { background: var(--bg2); border: 1px solid var(--border); border-radius: 10px; padding: 18px 20px; }
+  .alloc-card-title { font-family: var(--font-display); font-size: 13px; font-weight: 600; margin-bottom: 16px; color: var(--text); }
+  .alloc-row { display: flex; align-items: center; gap: 10px; margin-bottom: 10px; }
+  .alloc-label { font-size: 11px; color: var(--muted); width: 150px; flex-shrink: 0; }
+  .alloc-bar-bg { flex: 1; height: 4px; background: var(--border); border-radius: 2px; overflow: hidden; }
+  .alloc-bar { height: 100%; border-radius: 2px; transition: width 0.8s ease; }
+  .alloc-pct { font-size: 11px; color: var(--text); width: 32px; text-align: right; font-variant-numeric: tabular-nums; }
+
+  /* Last updated */
+  .last-updated { font-size: 10px; color: var(--muted2); margin-top: 24px; padding-top: 16px; border-top: 1px solid var(--border); text-align: center; }
+
+  /* Spinner */
+  .spinner { display: inline-block; width: 10px; height: 10px; border: 1.5px solid var(--muted2); border-top-color: var(--accent); border-radius: 50%; animation: spin 0.6s linear infinite; }
+  @keyframes spin { to { transform: rotate(360deg); } }
+
+  /* Update note */
+  .update-banner { background: var(--bg3); border: 1px solid var(--border2); border-radius: 8px; padding: 10px 16px; font-size: 12px; color: var(--muted); margin-bottom: 20px; }
+  .update-banner strong { color: var(--accent); }
+</style>
+</head>
+<body>
+
+<div class="header">
+  <div>
+    <div class="header-title">Vish / <span>Portfolio</span></div>
+  </div>
+  <div class="header-meta">
+    <span><span class="live-dot"></span>Prices via Yahoo Finance</span>
+    <span id="last-fetch">Loading prices...</span>
+    <button class="refresh-btn" onclick="fetchAllPrices()">↻ Refresh</button>
+  </div>
+</div>
+
+<div class="main">
+
+  <div class="update-banner">
+    <strong>How to update:</strong> Message Claude with any buy/sell and ask for an updated file. Replace this file on GitHub Pages to see changes. Prices auto-refresh on every page load.
+  </div>
+
+  <!-- Summary -->
+  <div class="summary-grid">
+    <div class="scard">
+      <div class="scard-label">Indian equities (ICICI)</div>
+      <div class="scard-value" id="s-icici-val">₹5,07,929</div>
+      <div class="scard-sub pos">+₹1,23,797 · +32.23%</div>
+    </div>
+    <div class="scard">
+      <div class="scard-label">ETFs + bonds (Zerodha)</div>
+      <div class="scard-value" id="s-zd-val">₹3,74,214</div>
+      <div class="scard-sub pos">+₹47,616 · +14.58%</div>
+    </div>
+    <div class="scard">
+      <div class="scard-label">Mutual funds (Coin + Groww)</div>
+      <div class="scard-value">₹5,68,067</div>
+      <div class="scard-sub pos">+₹79,992 · +16.4%</div>
+    </div>
+    <div class="scard">
+      <div class="scard-label">US stocks + PEE</div>
+      <div class="scard-value">$2,151 + €38.1K</div>
+      <div class="scard-sub neg">US: -$21 · -0.99%</div>
+    </div>
+  </div>
+
+  <!-- Tabs -->
+  <div class="tabs">
+    <button class="tab active" onclick="showTab('icici', this)">ICICI Direct <span class="tab-badge">11</span></button>
+    <button class="tab" onclick="showTab('zerodha', this)">Zerodha ETFs <span class="tab-badge">7</span></button>
+    <button class="tab" onclick="showTab('coin', this)">Coin MFs <span class="tab-badge">5</span></button>
+    <button class="tab" onclick="showTab('groww', this)">Groww ELSS <span class="tab-badge">2</span></button>
+    <button class="tab" onclick="showTab('us', this)">US Stocks <span class="tab-badge">8</span></button>
+    <button class="tab" onclick="showTab('risks', this)">Risk Flags <span class="tab-badge" style="background:var(--neg-bg);color:var(--neg);">7</span></button>
+    <button class="tab" onclick="showTab('alloc', this)">Allocation</button>
+  </div>
+
+  <!-- ICICI Direct -->
+  <div class="section active" id="sec-icici">
+    <div class="section-summary">
+      <span>Invested <strong>₹3,84,132</strong></span>
+      <span>Current <strong>₹5,07,929</strong></span>
+      <span class="pos">+₹1,23,797 (+32.23%)</span>
+      <span>Max gainer: <strong style="color:var(--pos)">LARTOU +214.85%</strong></span>
+      <span>Max loser: <strong style="color:var(--neg)">KWAWAL -37.95%</strong></span>
+    </div>
+    <div class="table-wrap">
+      <table>
+        <thead><tr>
+          <th>Stock</th>
+          <th class="r">Qty</th>
+          <th class="r">Avg cost</th>
+          <th class="r">Live price</th>
+          <th class="r">Invested (₹)</th>
+          <th class="r">Current (₹)</th>
+          <th class="r">P&L (₹)</th>
+          <th class="r">Return</th>
+        </tr></thead>
+        <tbody id="icici-tbody">
+        </tbody>
+      </table>
+    </div>
+  </div>
+
+  <!-- Zerodha ETFs -->
+  <div class="section" id="sec-zerodha">
+    <div class="section-summary">
+      <span>Invested <strong>₹3,26,598</strong></span>
+      <span>Current <strong>₹3,74,214</strong></span>
+      <span class="pos">+₹47,616 (+14.58%)</span>
+    </div>
+    <div class="table-wrap">
+      <table>
+        <thead><tr>
+          <th>Instrument</th>
+          <th class="r">Qty</th>
+          <th class="r">Avg cost</th>
+          <th class="r">Live price</th>
+          <th class="r">Invested (₹)</th>
+          <th class="r">Current (₹)</th>
+          <th class="r">P&L (₹)</th>
+          <th class="r">Return</th>
+        </tr></thead>
+        <tbody id="zerodha-tbody"></tbody>
+      </table>
+    </div>
+  </div>
+
+  <!-- Coin MFs -->
+  <div class="section" id="sec-coin">
+    <div class="section-summary">
+      <span>Invested <strong>₹4,03,000</strong></span>
+      <span>Current <strong>₹3,93,368</strong></span>
+      <span class="neg">-₹9,710 (-2.40%)</span>
+      <span style="color:var(--muted);font-size:11px;">NAV prices — refreshed from screenshots (11 Mar)</span>
+    </div>
+    <div class="table-wrap">
+      <table>
+        <thead><tr>
+          <th>Fund</th>
+          <th class="r">Avg NAV</th>
+          <th class="r">Curr NAV</th>
+          <th class="r">Invested (₹)</th>
+          <th class="r">Current (₹)</th>
+          <th class="r">P&L (₹)</th>
+          <th class="r">Return</th>
+        </tr></thead>
+        <tbody id="coin-tbody"></tbody>
+      </table>
+    </div>
+  </div>
+
+  <!-- Groww ELSS -->
+  <div class="section" id="sec-groww">
+    <div class="section-summary">
+      <span>Invested <strong>₹84,997</strong></span>
+      <span>Current <strong>₹1,74,699</strong></span>
+      <span class="pos">+₹89,702 (+105.54%)</span>
+    </div>
+    <div class="table-wrap">
+      <table>
+        <thead><tr>
+          <th>Fund</th>
+          <th class="r">Avg NAV</th>
+          <th class="r">Curr NAV</th>
+          <th class="r">Invested (₹)</th>
+          <th class="r">Current (₹)</th>
+          <th class="r">P&L (₹)</th>
+          <th class="r">Return</th>
+        </tr></thead>
+        <tbody id="groww-tbody"></tbody>
+      </table>
+    </div>
+  </div>
+
+  <!-- US Stocks -->
+  <div class="section" id="sec-us">
+    <div class="section-summary">
+      <span>Invested <strong>$2,172.90</strong></span>
+      <span>Current <strong id="us-total-val">$2,151.43</strong></span>
+      <span class="neg" id="us-total-pnl">-$21.47 (-0.99%)</span>
+    </div>
+    <div class="table-wrap">
+      <table>
+        <thead><tr>
+          <th>Symbol</th>
+          <th class="r">Qty</th>
+          <th class="r">Avg cost</th>
+          <th class="r">Live price</th>
+          <th class="r">Invested ($)</th>
+          <th class="r">Current ($)</th>
+          <th class="r">P&L ($)</th>
+          <th class="r">Return</th>
+        </tr></thead>
+        <tbody id="us-tbody"></tbody>
+      </table>
+    </div>
+  </div>
+
+  <!-- Risk Flags -->
+  <div class="section" id="sec-risks">
+    <div class="section-summary" style="margin-bottom:20px;">
+      <span>Based on holdings as of 11 March. Update prices to refresh analysis.</span>
+    </div>
+    <div class="risk-list">
+      <div class="risk-card high">
+        <div class="risk-header"><span class="risk-tag high">HIGH</span><div class="risk-title">KWAWAL — down 37.95%, near-zero position</div></div>
+        <div class="risk-desc">₹514 invested, current value ₹319. This position is effectively dead weight. Exit to harvest tax loss or simply clean up demat clutter. No realistic recovery thesis at this size.</div>
+      </div>
+      <div class="risk-card high">
+        <div class="risk-header"><span class="risk-tag high">HIGH</span><div class="risk-title">TCS — down 23.65%, IT sector re-rating ongoing</div></div>
+        <div class="risk-desc">₹22,599 invested, current ₹17,254. IT sector faces slower enterprise spending growth, pricing pressure from clients, and uncertainty around US visa/offshoring policy. Combine with KPITTECH exposure and your IT drawdown is ~₹15K.</div>
+      </div>
+      <div class="risk-card high">
+        <div class="risk-header"><span class="risk-tag high">HIGH</span><div class="risk-title">KPITTECH — down 18.16%, EV sector slowdown</div></div>
+        <div class="risk-desc">₹54,315 invested, current ₹44,454. KPIT is an automotive IT play heavily tied to EV software. Global EV adoption has slowed vs expectations, and OEM capex cuts are a headwind. Review thesis — is the original EV growth story still intact?</div>
+      </div>
+      <div class="risk-card med">
+        <div class="risk-header"><span class="risk-tag med">MEDIUM</span><div class="risk-title">Zerodha Coin MFs — entire portfolio in the red</div></div>
+        <div class="risk-desc">All 5 funds are negative. Nippon Small Cap is the biggest drag at -5.19% (₹5,343 loss) on ₹1L invested. Small and mid cap correction is ongoing in India. If these are SIPs, continue — this is accumulation territory. If lump sum, review position sizing.</div>
+      </div>
+      <div class="risk-card med">
+        <div class="risk-header"><span class="risk-tag med">MEDIUM</span><div class="risk-title">US tech concentration — AMZN + GOOGL + MSFT all negative</div></div>
+        <div class="risk-desc">Three of your largest US positions are underwater. Trump tariff uncertainty, potential ad market softness, and AI capex concerns are weighing on big tech broadly. Small absolute loss (~$18) but worth monitoring given directional macro risk.</div>
+      </div>
+      <div class="risk-card med">
+        <div class="risk-header"><span class="risk-tag med">MEDIUM</span><div class="risk-title">HINLEV — slightly underwater, FMCG softness</div></div>
+        <div class="risk-desc">Hindustan Unilever down 3.66%. Rural demand recovery slower than expected, input cost volatility. Small position — can be an add opportunity at lower levels if you have FMCG conviction.</div>
+      </div>
+      <div class="risk-card low">
+        <div class="risk-header"><span class="risk-tag low">NOTE</span><div class="risk-title">Sovereign Gold Bond — illiquid till Jan 2029</div></div>
+        <div class="risk-desc">Up an extraordinary 221% — your single best performing holding. Fully locked in till maturity in January 2029. No action needed. Just be aware this cannot be liquidated easily before maturity without significant discount.</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Allocation -->
+  <div class="section" id="sec-alloc">
+    <div class="alloc-grid">
+      <div class="alloc-card">
+        <div class="alloc-card-title">By account</div>
+        <div class="alloc-row"><div class="alloc-label">ICICI direct</div><div class="alloc-bar-bg"><div class="alloc-bar" style="width:27%;background:#6ee7b7;"></div></div><div class="alloc-pct">27%</div></div>
+        <div class="alloc-row"><div class="alloc-label">Zerodha coin MFs</div><div class="alloc-bar-bg"><div class="alloc-bar" style="width:22%;background:#a78bfa;"></div></div><div class="alloc-pct">22%</div></div>
+        <div class="alloc-row"><div class="alloc-label">Zerodha ETFs+bonds</div><div class="alloc-bar-bg"><div class="alloc-bar" style="width:20%;background:#60a5fa;"></div></div><div class="alloc-pct">20%</div></div>
+        <div class="alloc-row"><div class="alloc-label">Schneider PEE (€)</div><div class="alloc-bar-bg"><div class="alloc-bar" style="width:17%;background:#fbbf24;"></div></div><div class="alloc-pct">~17%</div></div>
+        <div class="alloc-row"><div class="alloc-label">Groww ELSS</div><div class="alloc-bar-bg"><div class="alloc-bar" style="width:10%;background:#f472b6;"></div></div><div class="alloc-pct">10%</div></div>
+        <div class="alloc-row"><div class="alloc-label">US stocks ($)</div><div class="alloc-bar-bg"><div class="alloc-bar" style="width:4%;background:#94a3b8;"></div></div><div class="alloc-pct">~4%</div></div>
+      </div>
+      <div class="alloc-card">
+        <div class="alloc-card-title">By asset class</div>
+        <div class="alloc-row"><div class="alloc-label">Indian equities</div><div class="alloc-bar-bg"><div class="alloc-bar" style="width:45%;background:#6ee7b7;"></div></div><div class="alloc-pct">45%</div></div>
+        <div class="alloc-row"><div class="alloc-label">Mutual funds (MFs)</div><div class="alloc-bar-bg"><div class="alloc-bar" style="width:20%;background:#a78bfa;"></div></div><div class="alloc-pct">20%</div></div>
+        <div class="alloc-row"><div class="alloc-label">Gold + Silver ETFs</div><div class="alloc-bar-bg"><div class="alloc-bar" style="width:10%;background:#fbbf24;"></div></div><div class="alloc-pct">10%</div></div>
+        <div class="alloc-row"><div class="alloc-label">Employee stock (PEE)</div><div class="alloc-bar-bg"><div class="alloc-bar" style="width:17%;background:#f59e0b;"></div></div><div class="alloc-pct">~17%</div></div>
+        <div class="alloc-row"><div class="alloc-label">US equities</div><div class="alloc-bar-bg"><div class="alloc-bar" style="width:4%;background:#60a5fa;"></div></div><div class="alloc-pct">~4%</div></div>
+        <div class="alloc-row"><div class="alloc-label">Sovereign gold bond</div><div class="alloc-bar-bg"><div class="alloc-bar" style="width:4%;background:#34d399;"></div></div><div class="alloc-pct">4%</div></div>
+      </div>
+    </div>
+  </div>
+
+  <div class="last-updated" id="last-updated-text">Prices loaded on page open via Yahoo Finance (Indian: NSE, US: NASDAQ/NYSE). NAVs updated manually from broker screenshots.</div>
+
+</div>
+
+<script>
+// ============================================================
+// PORTFOLIO DATA — UPDATE THIS WHEN HOLDINGS CHANGE
+// ============================================================
+
+const ICICI_HOLDINGS = [
+  { symbol: 'LARTOU.NS',   name: 'Larsen & Toubro',     sub: 'L&T',               qty: 12,   avgCost: 1219.23 },
+  { symbol: 'RELIANCE.NS', name: 'Reliance Industries',  sub: 'RELIND',            qty: 42,   avgCost: 852.54  },
+  { symbol: 'BAJFINANCE.NS',name: 'Bajaj Finance',       sub: 'BAJFI',             qty: 141,  avgCost: 620.41  },
+  { symbol: 'AFFIND.NS',   name: 'Affiliated Ind.',      sub: 'AFFIND',            qty: 38,   avgCost: 1092.36 },
+  { symbol: 'AVESUP.NS',   name: 'Avenue Supermarts',    sub: 'AVESUP / DMart',    qty: 10,   avgCost: 3155.68 },
+  { symbol: 'DIXON.NS',    name: 'Dixon Technologies',   sub: 'DIXTEC',            qty: 3,    avgCost: 8549.93 },
+  { symbol: 'HDFCBANK.NS', name: 'HDFC Bank',            sub: 'HDFBAN',            qty: 109,  avgCost: 729.57  },
+  { symbol: 'ICICIBANK.NS',name: 'ICICI Bank',           sub: 'ICIBAN',            qty: 14,   avgCost: 1281.69 },
+  { symbol: 'HINDUNILVR.NS',name: 'Hindustan Unilever',  sub: 'HINLEV',            qty: 12,   avgCost: 2243.41 },
+  { symbol: 'TCS.NS',      name: 'Tata Consultancy',     sub: 'TCS',               qty: 7,    avgCost: 3228.42 },
+  { symbol: 'KWAWAL.NS',   name: 'Kwa Wal (penny)',      sub: 'KWAWAL',            qty: 12,   avgCost: 42.85   },
+];
+
+const ZERODHA_HOLDINGS = [
+  { symbol: 'SGBJAN29IX-GB.NS', name: 'Sov. Gold Bond Jan29', sub: 'SGBJAN29IX-GB', qty: 4,    avgCost: 4950.00,  isBond: true, lastPrice: 15898.95 },
+  { symbol: 'SILVERBEES.NS',    name: 'Nippon Silver ETF',     sub: 'SILVERBEES',    qty: 75,   avgCost: 209.76  },
+  { symbol: 'GOLDBEES.NS',      name: 'Nippon Gold ETF',       sub: 'GOLDBEES',      qty: 125,  avgCost: 114.60  },
+  { symbol: 'MID150BEES.NS',    name: 'Nifty Midcap ETF',      sub: 'MIDCAPETF',     qty: 4143, avgCost: 20.03   },
+  { symbol: 'BSEETF.NS',        name: 'BSE Ltd Stock',         sub: 'BSE',           qty: 14,   avgCost: 2677.06 },
+  { symbol: 'NIFTYBEES.NS',     name: 'Nifty 50 ETF',          sub: 'NIFTYBEES',     qty: 380,  avgCost: 268.35  },
+  { symbol: 'KPITTECH.NS',      name: 'KPIT Technologies',     sub: 'KPITTECH',      qty: 65,   avgCost: 835.62  },
+];
+
+const COIN_MFS = [
+  { name: 'Invesco India Smallcap',   sub: 'Small cap | Growth', avgNav: 43.48,   currNav: 43.56,   invested: 29998.50 },
+  { name: 'Edelweiss Mid Cap',        sub: 'Mid cap | Growth',   avgNav: 117.76,  currNav: 115.83,  invested: 134993.11 },
+  { name: 'Parag Parikh Flexi Cap',   sub: 'Flexi cap | Growth', avgNav: 92.34,   currNav: 90.4288, invested: 104994.77 },
+  { name: 'HDFC Flexi Cap',           sub: 'Flexi cap | Growth', avgNav: 2137.68, currNav: 2135.47, invested: 30098.56 },
+  { name: 'Nippon India Small Cap',   sub: 'Small cap | Growth', avgNav: 185.82,  currNav: 176.185, invested: 102994.85 },
+];
+
+const GROWW_ELSS = [
+  { name: 'Mirae Asset ELSS Tax Saver', sub: 'ELSS | Direct | Growth', avgNav: 26.8591, currNav: 53.437,   invested: 70997 },
+  { name: 'Axis ELSS Tax Saver',        sub: 'ELSS | Direct | Growth', avgNav: 43.1017, currNav: 102.9776, invested: 14000 },
+];
+
+const US_HOLDINGS = [
+  { symbol: 'META',  name: 'Meta Platforms',   qty: 0.39139841, avgCost: 638.12 },
+  { symbol: 'NVDA',  name: 'NVIDIA',            qty: 1.11278727, avgCost: 179.73 },
+  { symbol: 'QQQ',   name: 'Nasdaq 100 ETF',   qty: 0.32882007, avgCost: 608.24 },
+  { symbol: 'AMZN',  name: 'Amazon',            qty: 1.62147801, avgCost: 217.09 },
+  { symbol: 'GOOGL', name: 'Alphabet',          qty: 1.11771584, avgCost: 312.92 },
+  { symbol: 'MSFT',  name: 'Microsoft',         qty: 0.84416169, avgCost: 414.61 },
+  { symbol: 'COPX',  name: 'Copper Miners ETF', qty: 2.9204089,  avgCost: 85.52  },
+  { symbol: 'URA',   name: 'Uranium ETF',       qty: 4.09404319, avgCost: 54.13  },
+];
+
+// ============================================================
+// RENDERING
+// ============================================================
+
+function fmt(n, decimals=0) {
+  return Number(n).toLocaleString('en-IN', { maximumFractionDigits: decimals, minimumFractionDigits: decimals });
+}
+function fmtUSD(n, decimals=2) {
+  return Number(n).toLocaleString('en-US', { maximumFractionDigits: decimals, minimumFractionDigits: decimals });
+}
+function pillClass(pnl) {
+  if (pnl > 5) return 'pill-pos';
+  if (pnl < -2) return 'pill-neg';
+  return 'pill-neu';
+}
+function sign(n) { return n >= 0 ? '+' : ''; }
+
+function renderMFs(tbodyId, data) {
+  const tbody = document.getElementById(tbodyId);
+  tbody.innerHTML = data.map(f => {
+    const curr = f.invested * (f.currNav / f.avgNav);
+    const pnl = curr - f.invested;
+    const ret = (pnl / f.invested) * 100;
+    return `<tr>
+      <td><div class="instrument-name">${f.name}</div><div class="instrument-sub">${f.sub}</div></td>
+      <td class="r">${f.avgNav.toFixed(2)}</td>
+      <td class="r">${f.currNav.toFixed(4)}</td>
+      <td class="r">${fmt(f.invested)}</td>
+      <td class="r">${fmt(curr)}</td>
+      <td class="r" style="color:${pnl>=0?'var(--pos)':'var(--neg)'}">${sign(pnl)}${fmt(pnl)}</td>
+      <td class="r"><span class="pill ${pillClass(ret)}">${sign(ret)}${ret.toFixed(2)}%</span></td>
+    </tr>`;
+  }).join('');
+}
+
+function renderINHoldings(tbodyId, data) {
+  const tbody = document.getElementById(tbodyId);
+  tbody.innerHTML = data.map((h, i) => {
+    const invested = h.qty * h.avgCost;
+    return `<tr id="row-${tbodyId}-${i}">
+      <td><div class="instrument-name">${h.sub || h.name}</div><div class="instrument-sub">${h.name}</div></td>
+      <td class="r">${fmt(h.qty)}</td>
+      <td class="r">₹${fmt(h.avgCost, 2)}</td>
+      <td class="r price-live loading" id="price-${tbodyId}-${i}"><span class="spinner"></span></td>
+      <td class="r">₹${fmt(invested)}</td>
+      <td class="r" id="curval-${tbodyId}-${i}">—</td>
+      <td class="r" id="pnl-${tbodyId}-${i}">—</td>
+      <td class="r" id="ret-${tbodyId}-${i}">—</td>
+    </tr>`;
+  }).join('');
+}
+
+function renderUSHoldings() {
+  const tbody = document.getElementById('us-tbody');
+  tbody.innerHTML = US_HOLDINGS.map((h, i) => {
+    const invested = h.qty * h.avgCost;
+    return `<tr>
+      <td><div class="instrument-name">${h.symbol}</div><div class="instrument-sub">${h.name}</div></td>
+      <td class="r">${h.qty.toFixed(4)}</td>
+      <td class="r">$${fmtUSD(h.avgCost)}</td>
+      <td class="r price-live loading" id="usprice-${i}"><span class="spinner"></span></td>
+      <td class="r">$${fmtUSD(invested)}</td>
+      <td class="r" id="us-curval-${i}">—</td>
+      <td class="r" id="us-pnl-${i}">—</td>
+      <td class="r" id="us-ret-${i}">—</td>
+    </tr>`;
+  }).join('');
+}
+
+function updateINRow(tbodyId, i, holding, price) {
+  const invested = holding.qty * holding.avgCost;
+  const curval = holding.qty * price;
+  const pnl = curval - invested;
+  const ret = (pnl / invested) * 100;
+  const priceEl = document.getElementById(`price-${tbodyId}-${i}`);
+  const curvalEl = document.getElementById(`curval-${tbodyId}-${i}`);
+  const pnlEl = document.getElementById(`pnl-${tbodyId}-${i}`);
+  const retEl = document.getElementById(`ret-${tbodyId}-${i}`);
+  if (priceEl) { priceEl.className = 'r price-live'; priceEl.textContent = '₹' + fmt(price, 2); }
+  if (curvalEl) curvalEl.innerHTML = `₹${fmt(curval)}`;
+  if (pnlEl) pnlEl.innerHTML = `<span style="color:${pnl>=0?'var(--pos)':'var(--neg)'}">${sign(pnl)}₹${fmt(Math.abs(pnl))}</span>`;
+  if (retEl) retEl.innerHTML = `<span class="pill ${pillClass(ret)}">${sign(ret)}${ret.toFixed(2)}%</span>`;
+}
+
+function updateUSRow(i, holding, price) {
+  const invested = holding.qty * holding.avgCost;
+  const curval = holding.qty * price;
+  const pnl = curval - invested;
+  const ret = (pnl / invested) * 100;
+  const priceEl = document.getElementById(`usprice-${i}`);
+  const curvalEl = document.getElementById(`us-curval-${i}`);
+  const pnlEl = document.getElementById(`us-pnl-${i}`);
+  const retEl = document.getElementById(`us-ret-${i}`);
+  if (priceEl) { priceEl.className = 'r price-live'; priceEl.textContent = '$' + fmtUSD(price); }
+  if (curvalEl) curvalEl.innerHTML = `$${fmtUSD(curval)}`;
+  if (pnlEl) pnlEl.innerHTML = `<span style="color:${pnl>=0?'var(--pos)':'var(--neg)'}">${sign(pnl)}$${fmtUSD(Math.abs(pnl))}</span>`;
+  if (retEl) retEl.innerHTML = `<span class="pill ${pillClass(ret)}">${sign(ret)}${ret.toFixed(2)}%</span>`;
+}
+
+// ============================================================
+// PRICE FETCHING via Yahoo Finance (CORS proxy)
+// ============================================================
+
+async function fetchPrice(symbol) {
+  try {
+    const url = `https://query1.finance.yahoo.com/v8/finance/chart/${encodeURIComponent(symbol)}?interval=1d&range=1d`;
+    const res = await fetch(url);
+    const data = await res.json();
+    const price = data?.chart?.result?.[0]?.meta?.regularMarketPrice;
+    return price || null;
+  } catch(e) {
+    return null;
+  }
+}
+
+async function fetchAllPrices() {
+  document.getElementById('last-fetch').textContent = 'Fetching prices...';
+
+  // Render tables first with spinners
+  renderINHoldings('icici-tbody', ICICI_HOLDINGS);
+  renderINHoldings('zerodha-tbody', ZERODHA_HOLDINGS);
+  renderUSHoldings();
+  renderMFs('coin-tbody', COIN_MFS);
+  renderMFs('groww-tbody', GROWW_ELSS);
+
+  // Handle bond manually (not actively traded on Yahoo)
+  const sgbIdx = ZERODHA_HOLDINGS.findIndex(h => h.isBond);
+  if (sgbIdx >= 0) {
+    updateINRow('zerodha-tbody', sgbIdx, ZERODHA_HOLDINGS[sgbIdx], ZERODHA_HOLDINGS[sgbIdx].lastPrice);
+  }
+
+  // Fetch ICICI holdings
+  for (let i = 0; i < ICICI_HOLDINGS.length; i++) {
+    const h = ICICI_HOLDINGS[i];
+    const price = await fetchPrice(h.symbol);
+    if (price) updateINRow('icici-tbody', i, h, price);
+    else {
+      const el = document.getElementById(`price-icici-tbody-${i}`);
+      if (el) { el.className = 'r'; el.textContent = 'n/a'; el.style.color = 'var(--muted2)'; }
+    }
+  }
+
+  // Fetch Zerodha holdings
+  for (let i = 0; i < ZERODHA_HOLDINGS.length; i++) {
+    const h = ZERODHA_HOLDINGS[i];
+    if (h.isBond) continue;
+    const price = await fetchPrice(h.symbol);
+    if (price) updateINRow('zerodha-tbody', i, h, price);
+    else {
+      const el = document.getElementById(`price-zerodha-tbody-${i}`);
+      if (el) { el.className = 'r'; el.textContent = 'n/a'; el.style.color = 'var(--muted2)'; }
+    }
+  }
+
+  // Fetch US holdings
+  for (let i = 0; i < US_HOLDINGS.length; i++) {
+    const h = US_HOLDINGS[i];
+    const price = await fetchPrice(h.symbol);
+    if (price) updateUSRow(i, h, price);
+    else {
+      const el = document.getElementById(`usprice-${i}`);
+      if (el) { el.className = 'r'; el.textContent = 'n/a'; el.style.color = 'var(--muted2)'; }
+    }
+  }
+
+  const now = new Date();
+  document.getElementById('last-fetch').textContent = `Updated ${now.toLocaleTimeString('en-IN')}`;
+  document.getElementById('last-updated-text').textContent = `Prices last fetched: ${now.toLocaleString('en-IN')}. Indian markets: NSE via Yahoo Finance. US markets: NASDAQ/NYSE via Yahoo Finance.`;
+}
+
+// ============================================================
+// TAB SWITCHING
+// ============================================================
+
+function showTab(name, el) {
+  document.querySelectorAll('.section').forEach(s => s.classList.remove('active'));
+  document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+  document.getElementById('sec-' + name).classList.add('active');
+  el.classList.add('active');
+}
+
+// ============================================================
+// INIT
+// ============================================================
+fetchAllPrices();
+</script>
+</body>
+</html>
