@@ -1,0 +1,692 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Vish — Portfolio</title>
+<link href="https://fonts.googleapis.com/css2?family=DM+Mono:ital,wght@0,300;0,400;0,500;1,300&family=Syne:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+:root {
+  --bg:#0e0f11; --bg2:#141518; --bg3:#1c1e22; --bg4:#22252a;
+  --border:rgba(255,255,255,0.07); --border2:rgba(255,255,255,0.13);
+  --text:#f0f0ee; --muted:#7a7a78; --muted2:#3a3a38;
+  --pos:#4ade80; --pos-bg:rgba(74,222,128,0.09);
+  --neg:#f87171; --neg-bg:rgba(248,113,113,0.09);
+  --warn:#fbbf24; --warn-bg:rgba(251,191,36,0.09);
+  --neu:#94a3b8; --neu-bg:rgba(148,163,184,0.09);
+  --accent:#6ee7b7; --accent2:#a78bfa; --accent3:#60a5fa;
+  --fd: 'Syne', sans-serif; --fm: 'DM Mono', monospace;
+}
+*{box-sizing:border-box;margin:0;padding:0;}
+body{background:var(--bg);color:var(--text);font-family:var(--fm);font-size:13px;line-height:1.6;}
+a{color:var(--accent3);text-decoration:none;}
+
+/* HEADER */
+.hdr{padding:20px 28px;border-bottom:1px solid var(--border);display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:10px;position:sticky;top:0;background:var(--bg);z-index:100;}
+.hdr-title{font-family:var(--fd);font-size:17px;font-weight:600;letter-spacing:-.02em;}
+.hdr-title span{color:var(--accent);}
+.hdr-right{display:flex;align-items:center;gap:12px;flex-wrap:wrap;}
+.live-pill{display:flex;align-items:center;gap:5px;font-size:11px;color:var(--muted);background:var(--bg3);border:1px solid var(--border2);padding:4px 10px;border-radius:20px;}
+.dot{width:6px;height:6px;border-radius:50%;background:var(--pos);animation:pulse 2s infinite;}
+@keyframes pulse{0%,100%{opacity:1}50%{opacity:.3}}
+.btn{background:var(--bg3);border:1px solid var(--border2);color:var(--muted);padding:5px 12px;border-radius:6px;cursor:pointer;font-family:var(--fm);font-size:11px;transition:.15s;}
+.btn:hover{color:var(--text);border-color:var(--accent);}
+.btn.spinning{color:var(--accent);}
+
+/* FX BAR */
+.fx-bar{background:var(--bg2);border-bottom:1px solid var(--border);padding:8px 28px;display:flex;gap:20px;font-size:11px;color:var(--muted);flex-wrap:wrap;align-items:center;}
+.fx-item{display:flex;align-items:center;gap:5px;}
+.fx-val{color:var(--text);font-weight:500;}
+.fx-edit{background:none;border:none;color:var(--muted2);cursor:pointer;font-size:10px;padding:0 2px;}
+.fx-edit:hover{color:var(--accent);}
+
+/* MAIN */
+.main{padding:24px 28px;max-width:1440px;}
+
+/* NETWORTH BANNER */
+.nw-banner{background:var(--bg2);border:1px solid var(--border);border-radius:12px;padding:20px 24px;margin-bottom:24px;}
+.nw-top{display:flex;align-items:baseline;gap:12px;margin-bottom:16px;flex-wrap:wrap;}
+.nw-label{font-size:11px;color:var(--muted);text-transform:uppercase;letter-spacing:.08em;}
+.nw-value{font-family:var(--fd);font-size:32px;font-weight:700;color:var(--text);letter-spacing:-.03em;}
+.nw-pnl{font-size:14px;font-weight:500;}
+.nw-accounts{display:grid;grid-template-columns:repeat(auto-fit,minmax(160px,1fr));gap:10px;margin-top:4px;}
+.nw-acc{background:var(--bg3);border-radius:8px;padding:12px 14px;}
+.nw-acc-label{font-size:10px;color:var(--muted);text-transform:uppercase;letter-spacing:.06em;margin-bottom:5px;}
+.nw-acc-val{font-family:var(--fd);font-size:17px;font-weight:600;color:var(--text);}
+.nw-acc-pnl{font-size:11px;margin-top:2px;}
+
+/* NAV TABS */
+.nav{display:flex;gap:2px;margin-bottom:24px;border-bottom:1px solid var(--border);overflow-x:auto;}
+.nav::-webkit-scrollbar{height:0;}
+.ntab{padding:9px 18px;font-size:12px;font-family:var(--fm);color:var(--muted);background:transparent;border:none;cursor:pointer;border-bottom:2px solid transparent;margin-bottom:-1px;white-space:nowrap;transition:.15s;}
+.ntab:hover{color:var(--text);}
+.ntab.active{color:var(--accent);border-bottom-color:var(--accent);}
+
+/* SECTION */
+.sec{display:none;}
+.sec.active{display:block;}
+
+/* ANALYTICS GRID */
+.analytics-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(300px,1fr));gap:16px;margin-bottom:24px;}
+.acard{background:var(--bg2);border:1px solid var(--border);border-radius:10px;padding:18px 20px;}
+.acard-title{font-size:11px;color:var(--muted);text-transform:uppercase;letter-spacing:.07em;margin-bottom:14px;}
+
+/* BAR CHART */
+.bar-row{display:flex;align-items:center;gap:8px;margin-bottom:9px;}
+.bar-lbl{font-size:11px;color:var(--muted);width:130px;flex-shrink:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+.bar-bg{flex:1;height:5px;background:var(--muted2);border-radius:3px;overflow:hidden;}
+.bar-fill{height:100%;border-radius:3px;transition:width .6s ease;}
+.bar-pct{font-size:11px;color:var(--text);width:38px;text-align:right;}
+.bar-val{font-size:10px;color:var(--muted);width:70px;text-align:right;}
+
+/* STAT ROW */
+.stat-row{display:flex;justify-content:space-between;padding:7px 0;border-bottom:1px solid var(--border);font-size:12px;}
+.stat-row:last-child{border-bottom:none;}
+.stat-lbl{color:var(--muted);}
+.stat-val{color:var(--text);font-weight:500;}
+
+/* TABLE */
+.tbl-wrap{overflow-x:auto;border:1px solid var(--border);border-radius:10px;}
+.tbl-hdr{display:flex;justify-content:space-between;align-items:center;padding:12px 16px;border-bottom:1px solid var(--border);background:var(--bg2);}
+.tbl-title{font-size:12px;font-weight:500;color:var(--text);}
+.tbl-meta{font-size:11px;color:var(--muted);}
+table{width:100%;border-collapse:collapse;}
+thead th{font-size:10px;text-transform:uppercase;letter-spacing:.07em;color:var(--muted);padding:9px 12px;text-align:left;border-bottom:1px solid var(--border);font-weight:400;background:var(--bg2);white-space:nowrap;}
+thead th.r{text-align:right;}
+tbody td{padding:10px 12px;border-bottom:1px solid var(--border);color:var(--text);vertical-align:middle;}
+tbody td.r{text-align:right;font-variant-numeric:tabular-nums;}
+tbody tr:last-child td{border-bottom:none;}
+tbody tr:hover td{background:rgba(255,255,255,0.02);}
+.iname{font-weight:500;font-size:13px;}
+.isub{font-size:10px;color:var(--muted);margin-top:1px;}
+
+/* PILLS */
+.pill{display:inline-block;font-size:10px;padding:2px 7px;border-radius:4px;font-weight:500;}
+.p-pos{background:var(--pos-bg);color:var(--pos);}
+.p-neg{background:var(--neg-bg);color:var(--neg);}
+.p-neu{background:var(--neu-bg);color:var(--neu);}
+.p-warn{background:var(--warn-bg);color:var(--warn);}
+
+/* RISK */
+.risk-list{display:flex;flex-direction:column;gap:10px;}
+.rcard{background:var(--bg2);border:1px solid var(--border);border-left:3px solid transparent;border-radius:10px;padding:14px 16px;}
+.rcard.h{border-left-color:var(--neg);}
+.rcard.m{border-left-color:var(--warn);}
+.rcard.l{border-left-color:var(--pos);}
+.rtitle{font-size:13px;font-weight:500;margin-bottom:5px;color:var(--text);}
+.rdesc{font-size:12px;color:var(--muted);line-height:1.6;}
+
+/* SPINNER */
+.sp{display:inline-block;width:10px;height:10px;border:1.5px solid var(--muted2);border-top-color:var(--accent);border-radius:50%;animation:spin .6s linear infinite;}
+@keyframes spin{to{transform:rotate(360deg)}}
+
+/* FOOTER */
+.footer{font-size:10px;color:var(--muted2);margin-top:32px;padding-top:16px;border-top:1px solid var(--border);text-align:center;}
+
+/* RESPONSIVE */
+@media(max-width:700px){
+  .main{padding:16px;}
+  .hdr{padding:14px 16px;}
+  .fx-bar{padding:8px 16px;}
+  .nw-value{font-size:24px;}
+}
+</style>
+</head>
+<body>
+
+<div class="hdr">
+  <div class="hdr-title">Vish / <span>Portfolio</span></div>
+  <div class="hdr-right">
+    <div class="live-pill"><span class="dot"></span><span id="fetch-status">Loading prices...</span></div>
+    <button class="btn" id="refresh-btn" onclick="init()">↻ Refresh</button>
+  </div>
+</div>
+
+<div class="fx-bar">
+  <span style="color:var(--muted);font-size:10px;text-transform:uppercase;letter-spacing:.06em;">FX Rates (edit to update):</span>
+  <div class="fx-item">USD/INR: <span class="fx-val" id="fx-usd">84.50</span> <button class="fx-edit" onclick="editFX('usd')" title="Edit">✎</button></div>
+  <div class="fx-item">EUR/INR: <span class="fx-val" id="fx-eur">91.20</span> <button class="fx-edit" onclick="editFX('eur')" title="Edit">✎</button></div>
+  <div class="fx-item" style="color:var(--muted2);font-size:10px;">Click ✎ to update rates manually</div>
+</div>
+
+<div class="main">
+
+  <!-- NETWORTH BANNER -->
+  <div class="nw-banner">
+    <div class="nw-label">Total net worth</div>
+    <div class="nw-top">
+      <div class="nw-value" id="nw-total">—</div>
+      <div class="nw-pnl" id="nw-pnl">—</div>
+    </div>
+    <div class="nw-accounts" id="nw-accounts">
+      <!-- filled by JS -->
+    </div>
+  </div>
+
+  <!-- TABS -->
+  <div class="nav">
+    <button class="ntab active" onclick="showTab('analytics',this)">Analytics</button>
+    <button class="ntab" onclick="showTab('stocks',this)">Stocks</button>
+    <button class="ntab" onclick="showTab('mf',this)">Mutual Funds</button>
+    <button class="ntab" onclick="showTab('etf',this)">ETFs</button>
+    <button class="ntab" onclick="showTab('metals',this)">Metals</button>
+    <button class="ntab" onclick="showTab('usa',this)">USA</button>
+    <button class="ntab" onclick="showTab('foreign',this)">Foreign (PEE)</button>
+    <button class="ntab" onclick="showTab('risks',this)">Risk Flags</button>
+  </div>
+
+  <!-- ANALYTICS -->
+  <div class="sec active" id="sec-analytics">
+    <div class="analytics-grid">
+
+      <div class="acard">
+        <div class="acard-title">Allocation by account</div>
+        <div id="alloc-account"></div>
+      </div>
+
+      <div class="acard">
+        <div class="acard-title">Allocation by asset class</div>
+        <div id="alloc-asset"></div>
+      </div>
+
+      <div class="acard">
+        <div class="acard-title">Allocation by country</div>
+        <div id="alloc-country"></div>
+      </div>
+
+      <div class="acard">
+        <div class="acard-title">Allocation by market cap</div>
+        <div id="alloc-cap"></div>
+      </div>
+
+      <div class="acard" style="grid-column:1/-1;">
+        <div class="acard-title">Portfolio summary stats</div>
+        <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:0 32px;" id="summary-stats"></div>
+      </div>
+
+    </div>
+  </div>
+
+  <!-- STOCKS (ICICI Direct Indian equities) -->
+  <div class="sec" id="sec-stocks">
+    <div class="tbl-wrap">
+      <div class="tbl-hdr">
+        <div class="tbl-title">Indian Stocks — ICICI Direct</div>
+        <div class="tbl-meta" id="stocks-meta">Invested ₹3,84,132</div>
+      </div>
+      <table><thead><tr>
+        <th>Stock</th><th class="r">Qty</th><th class="r">Avg cost</th>
+        <th class="r">Live price</th><th class="r">Invested (₹)</th>
+        <th class="r">Value (₹)</th><th class="r">P&L (₹)</th><th class="r">Return</th>
+      </tr></thead><tbody id="stocks-body"></tbody></table>
+    </div>
+  </div>
+
+  <!-- MUTUAL FUNDS -->
+  <div class="sec" id="sec-mf">
+    <div style="display:flex;flex-direction:column;gap:20px;">
+      <div class="tbl-wrap">
+        <div class="tbl-hdr"><div class="tbl-title">Zerodha Coin — MFs</div><div class="tbl-meta" id="coin-meta"></div></div>
+        <table><thead><tr>
+          <th>Fund</th><th class="r">Avg NAV</th><th class="r">Curr NAV</th>
+          <th class="r">Invested (₹)</th><th class="r">Value (₹)</th><th class="r">P&L (₹)</th><th class="r">Return</th>
+        </tr></thead><tbody id="coin-body"></tbody></table>
+      </div>
+      <div class="tbl-wrap">
+        <div class="tbl-hdr"><div class="tbl-title">Groww — ELSS</div><div class="tbl-meta" id="groww-meta"></div></div>
+        <table><thead><tr>
+          <th>Fund</th><th class="r">Avg NAV</th><th class="r">Curr NAV</th>
+          <th class="r">Invested (₹)</th><th class="r">Value (₹)</th><th class="r">P&L (₹)</th><th class="r">Return</th>
+        </tr></thead><tbody id="groww-body"></tbody></table>
+      </div>
+    </div>
+  </div>
+
+  <!-- ETFs (non-metals from Zerodha) -->
+  <div class="sec" id="sec-etf">
+    <div class="tbl-wrap">
+      <div class="tbl-hdr"><div class="tbl-title">ETFs — Zerodha</div><div class="tbl-meta" id="etf-meta"></div></div>
+      <table><thead><tr>
+        <th>ETF</th><th class="r">Qty</th><th class="r">Avg cost</th>
+        <th class="r">Live price</th><th class="r">Invested (₹)</th>
+        <th class="r">Value (₹)</th><th class="r">P&L (₹)</th><th class="r">Return</th>
+      </tr></thead><tbody id="etf-body"></tbody></table>
+    </div>
+  </div>
+
+  <!-- METALS -->
+  <div class="sec" id="sec-metals">
+    <div class="tbl-wrap">
+      <div class="tbl-hdr"><div class="tbl-title">Gold & Silver — Zerodha</div><div class="tbl-meta" id="metals-meta"></div></div>
+      <table><thead><tr>
+        <th>Instrument</th><th class="r">Qty</th><th class="r">Avg cost</th>
+        <th class="r">Live price</th><th class="r">Invested (₹)</th>
+        <th class="r">Value (₹)</th><th class="r">P&L (₹)</th><th class="r">Return</th>
+      </tr></thead><tbody id="metals-body"></tbody></table>
+    </div>
+  </div>
+
+  <!-- USA -->
+  <div class="sec" id="sec-usa">
+    <div class="tbl-wrap">
+      <div class="tbl-hdr"><div class="tbl-title">US Stocks & ETFs — Groww (VF Securities)</div><div class="tbl-meta" id="usa-meta"></div></div>
+      <table><thead><tr>
+        <th>Symbol</th><th class="r">Qty</th><th class="r">Avg cost ($)</th>
+        <th class="r">Live ($)</th><th class="r">Invested (₹)</th>
+        <th class="r">Value (₹)</th><th class="r">Also ($)</th><th class="r">P&L (₹)</th><th class="r">Return</th>
+      </tr></thead><tbody id="usa-body"></tbody></table>
+    </div>
+  </div>
+
+  <!-- FOREIGN PEE -->
+  <div class="sec" id="sec-foreign">
+    <div class="tbl-wrap">
+      <div class="tbl-hdr"><div class="tbl-title">Schneider Electric PEE — Employee Stock Plan (EUR)</div><div class="tbl-meta" id="pee-meta"></div></div>
+      <table><thead><tr>
+        <th>Fund</th><th class="r">Value (€)</th><th class="r">Value (₹)</th><th class="r">Type</th>
+      </tr></thead><tbody id="pee-body"></tbody></table>
+    </div>
+  </div>
+
+  <!-- RISK FLAGS -->
+  <div class="sec" id="sec-risks">
+    <div class="risk-list">
+      <div class="rcard h"><div class="rtitle">KWAWAL — down 37.95%, near-zero position</div><div class="rdesc">₹514 invested, ₹319 current. Exit to harvest tax loss or clean up demat. No recovery thesis at this size.</div></div>
+      <div class="rcard h"><div class="rtitle">TCS — down 23.65%, IT sector headwinds</div><div class="rdesc">₹22,599 invested, ₹17,254 current. IT sector faces pricing pressure, slower enterprise spending, US offshoring uncertainty. Combined with KPITTECH your IT drawdown is ~₹15K.</div></div>
+      <div class="rcard h"><div class="rtitle">KPITTECH — down 18.16%, EV sector slowdown</div><div class="rdesc">₹54,315 invested, ₹44,454 current. Automotive IT play tied to EV software. EV adoption has slowed globally, OEM capex cuts are a headwind.</div></div>
+      <div class="rcard m"><div class="rtitle">Zerodha Coin MFs — entire portfolio in the red</div><div class="rdesc">All 5 funds negative. Nippon Small Cap biggest drag at -5.19%. Small/mid cap correction ongoing. If SIPs, continue accumulating. If lump sum, review sizing.</div></div>
+      <div class="rcard m"><div class="rtitle">US big tech — AMZN, GOOGL, MSFT all negative</div><div class="rdesc">Tariff uncertainty, AI capex concerns, ad market softness. Small absolute loss but directional macro risk worth monitoring.</div></div>
+      <div class="rcard m"><div class="rtitle">HINLEV — slightly underwater</div><div class="rdesc">Down 3.66%. FMCG rural demand recovery slower than expected. Small position — potential add opportunity at lower levels.</div></div>
+      <div class="rcard l"><div class="rtitle">SGB Jan 2029 — illiquid but extraordinary performer</div><div class="rdesc">Up 221%. Your single best holding. Locked till Jan 2029 — cannot be liquidated easily before maturity. No action needed.</div></div>
+    </div>
+  </div>
+
+  <div class="footer" id="footer-ts">Prices via Yahoo Finance (NSE + NYSE/NASDAQ). FX rates editable above. MF NAVs updated from broker screenshots (11 Mar 2025).</div>
+</div>
+
+<script>
+// ── FX RATES (editable) ──────────────────────────────────────
+let FX = { usd: 84.50, eur: 91.20 };
+
+function editFX(ccy) {
+  const cur = FX[ccy];
+  const val = prompt(`Enter current ${ccy.toUpperCase()}/INR rate:`, cur);
+  if (val && !isNaN(val)) {
+    FX[ccy] = parseFloat(val);
+    document.getElementById('fx-' + ccy).textContent = parseFloat(val).toFixed(2);
+    renderAll();
+  }
+}
+
+// ── PORTFOLIO DATA ───────────────────────────────────────────
+
+const STOCKS = [
+  { sym:'LARTOU.NS',   name:'L&T (Larsen & Toubro)',      acc:'ICICI', cap:'large', qty:12,   avg:1219.23 },
+  { sym:'RELIANCE.NS', name:'Reliance Industries',         acc:'ICICI', cap:'large', qty:42,   avg:852.54  },
+  { sym:'BAJFINANCE.NS',name:'Bajaj Finance',              acc:'ICICI', cap:'large', qty:141,  avg:620.41  },
+  { sym:'AFFIND.NS',   name:'Affiliated Industries',       acc:'ICICI', cap:'mid',   qty:38,   avg:1092.36 },
+  { sym:'DMART.NS',    name:'Avenue Supermarts (DMart)',   acc:'ICICI', cap:'large', qty:10,   avg:3155.68 },
+  { sym:'DIXON.NS',    name:'Dixon Technologies',          acc:'ICICI', cap:'mid',   qty:3,    avg:8549.93 },
+  { sym:'HDFCBANK.NS', name:'HDFC Bank',                   acc:'ICICI', cap:'large', qty:109,  avg:729.57  },
+  { sym:'ICICIBANK.NS',name:'ICICI Bank',                  acc:'ICICI', cap:'large', qty:14,   avg:1281.69 },
+  { sym:'HINDUNILVR.NS',name:'Hindustan Unilever',         acc:'ICICI', cap:'large', qty:12,   avg:2243.41 },
+  { sym:'TCS.NS',      name:'Tata Consultancy Services',   acc:'ICICI', cap:'large', qty:7,    avg:3228.42 },
+  { sym:'KWAWAL.NS',   name:'Kwa Wal',                     acc:'ICICI', cap:'small', qty:12,   avg:42.85   },
+  { sym:'BSE.NS',      name:'BSE Ltd',                     acc:'Zerodha', cap:'mid', qty:14,  avg:2677.06 },
+  { sym:'KPITTECH.NS', name:'KPIT Technologies',           acc:'Zerodha', cap:'mid', qty:65,  avg:835.62  },
+];
+
+const ETF_DATA = [
+  { sym:'MID150BEES.NS', name:'Nifty Midcap 150 ETF',  acc:'Zerodha', qty:4143, avg:20.03  },
+  { sym:'NIFTYBEES.NS',  name:'Nifty 50 ETF',           acc:'Zerodha', qty:380,  avg:268.35 },
+];
+
+const METALS_DATA = [
+  { sym:'GOLDBEES.NS',   name:'Nippon Gold ETF',   acc:'Zerodha', qty:125, avg:114.60 },
+  { sym:'SILVERBEES.NS', name:'Nippon Silver ETF', acc:'Zerodha', qty:75,  avg:209.76 },
+  { sym:'SGBJAN29IX-GB.NS', name:'Sovereign Gold Bond Jan 2029', acc:'Zerodha', qty:4, avg:4950.00, manualPrice:15898.95 },
+];
+
+const COIN_MFS = [
+  { name:'Invesco India Smallcap',  sub:'Small cap | Growth | Coin', avgNav:43.48,   currNav:43.56,   invested:29998.50  },
+  { name:'Edelweiss Mid Cap',       sub:'Mid cap | Growth | Coin',   avgNav:117.76,  currNav:115.83,  invested:134993.11 },
+  { name:'Parag Parikh Flexi Cap',  sub:'Flexi cap | Growth | Coin', avgNav:92.34,   currNav:90.4288, invested:104994.77 },
+  { name:'HDFC Flexi Cap',          sub:'Flexi cap | Growth | Coin', avgNav:2137.68, currNav:2135.47, invested:30098.56  },
+  { name:'Nippon India Small Cap',  sub:'Small cap | Growth | Coin', avgNav:185.82,  currNav:176.185, invested:102994.85 },
+];
+
+const GROWW_ELSS = [
+  { name:'Mirae Asset ELSS Tax Saver', sub:'ELSS | Direct | Groww', avgNav:26.8591, currNav:53.437,   invested:70997 },
+  { name:'Axis ELSS Tax Saver',        sub:'ELSS | Direct | Groww', avgNav:43.1017, currNav:102.9776, invested:14000 },
+];
+
+const US_DATA = [
+  { sym:'META',  name:'Meta Platforms',    qty:0.39139841, avg:638.12 },
+  { sym:'NVDA',  name:'NVIDIA',            qty:1.11278727, avg:179.73 },
+  { sym:'QQQ',   name:'Nasdaq 100 ETF',    qty:0.32882007, avg:608.24 },
+  { sym:'AMZN',  name:'Amazon',            qty:1.62147801, avg:217.09 },
+  { sym:'GOOGL', name:'Alphabet (Google)', qty:1.11771584, avg:312.92 },
+  { sym:'MSFT',  name:'Microsoft',         qty:0.84416169, avg:414.61 },
+  { sym:'COPX',  name:'Copper Miners ETF', qty:2.9204089,  avg:85.52  },
+  { sym:'URA',   name:'Uranium ETF',       qty:4.09404319, avg:54.13  },
+];
+
+const PEE_DATA = [
+  { name:'Schneider Actionnariat Mondial', type:'Employee savings', eurVal:14897.93 },
+  { name:'PEE Voluntary (Schneider)',      type:'Voluntary investment', eurVal:23243.19 },
+];
+
+// ── LIVE PRICE STORE ─────────────────────────────────────────
+let prices = {}; // symbol -> INR price (or USD for US stocks)
+
+// ── FETCH PRICES ─────────────────────────────────────────────
+// Using allorigins CORS proxy to bypass Yahoo Finance CORS block
+async function fetchPrice(symbol) {
+  try {
+    const yahooUrl = `https://query1.finance.yahoo.com/v8/finance/chart/${encodeURIComponent(symbol)}?interval=1d&range=1d`;
+    const proxyUrl = `https://api.allorigins.win/get?url=${encodeURIComponent(yahooUrl)}`;
+    const res = await fetch(proxyUrl, { signal: AbortSignal.timeout(8000) });
+    const outer = await res.json();
+    const data = JSON.parse(outer.contents);
+    return data?.chart?.result?.[0]?.meta?.regularMarketPrice || null;
+  } catch(e) {
+    return null;
+  }
+}
+
+async function fetchAllPrices() {
+  const btn = document.getElementById('refresh-btn');
+  btn.classList.add('spinning');
+  btn.textContent = '↻ Fetching...';
+  document.getElementById('fetch-status').textContent = 'Fetching prices...';
+
+  const allSymbols = [
+    ...STOCKS.map(h => h.sym),
+    ...ETF_DATA.map(h => h.sym),
+    ...METALS_DATA.filter(h => !h.manualPrice).map(h => h.sym),
+    ...US_DATA.map(h => h.sym),
+  ];
+
+  // Fetch with small stagger to avoid rate limits
+  for (const sym of allSymbols) {
+    const p = await fetchPrice(sym);
+    if (p) prices[sym] = p;
+    await new Promise(r => setTimeout(r, 120));
+  }
+
+  // Manual prices (bonds, etc)
+  METALS_DATA.forEach(h => { if (h.manualPrice) prices[h.sym] = h.manualPrice; });
+
+  const now = new Date();
+  document.getElementById('fetch-status').textContent = `Updated ${now.toLocaleTimeString('en-IN')}`;
+  document.getElementById('footer-ts').textContent = `Prices last fetched: ${now.toLocaleString('en-IN')} · Yahoo Finance via allorigins proxy · MF NAVs: 11 Mar 2025`;
+  btn.classList.remove('spinning');
+  btn.textContent = '↻ Refresh';
+
+  renderAll();
+}
+
+// ── HELPERS ──────────────────────────────────────────────────
+const inr = (n) => '₹' + Math.round(n).toLocaleString('en-IN');
+const usd = (n) => '$' + Number(n).toFixed(2);
+const eur = (n) => '€' + Number(n).toFixed(2);
+const pct = (n) => (n >= 0 ? '+' : '') + n.toFixed(2) + '%';
+const sc = (v) => v >= 0 ? 'p-pos' : 'p-neg';
+const cc = (v) => v >= 0 ? 'var(--pos)' : 'var(--neg)';
+
+function pill(val, suffix='%', decimals=2) {
+  const n = typeof val === 'number' ? val : parseFloat(val);
+  const cls = n >= 0 ? 'p-pos' : n < -5 ? 'p-neg' : 'p-warn';
+  return `<span class="pill ${cls}">${n >= 0 ? '+' : ''}${n.toFixed(decimals)}${suffix}</span>`;
+}
+
+// ── RENDER TABLE ROWS ────────────────────────────────────────
+function stockRow(h) {
+  const p = prices[h.sym];
+  const inv = h.qty * h.avg;
+  if (!p) return `<tr>
+    <td><div class="iname">${h.name}</div><div class="isub">${h.sym.replace('.NS','')}</div></td>
+    <td class="r">${h.qty}</td><td class="r">${inr(h.avg)}</td>
+    <td class="r" style="color:var(--muted2)">—</td>
+    <td class="r">${inr(inv)}</td><td class="r">—</td><td class="r">—</td><td class="r">—</td></tr>`;
+  const val = h.qty * p, pnl = val - inv, ret = (pnl/inv)*100;
+  return `<tr>
+    <td><div class="iname">${h.name}</div><div class="isub">${h.sym.replace('.NS','')}</div></td>
+    <td class="r">${h.qty}</td>
+    <td class="r">${inr(h.avg)}</td>
+    <td class="r" style="color:var(--accent)">${inr(p)}</td>
+    <td class="r">${inr(inv)}</td>
+    <td class="r">${inr(val)}</td>
+    <td class="r" style="color:${cc(pnl)}">${pnl>=0?'+':''}${inr(Math.abs(pnl))}</td>
+    <td class="r">${pill(ret)}</td></tr>`;
+}
+
+function mfRow(f) {
+  const curr = f.invested * (f.currNav / f.avgNav);
+  const pnl = curr - f.invested, ret = (pnl/f.invested)*100;
+  return `<tr>
+    <td><div class="iname">${f.name}</div><div class="isub">${f.sub}</div></td>
+    <td class="r">${f.avgNav.toFixed(2)}</td>
+    <td class="r">${f.currNav.toFixed(4)}</td>
+    <td class="r">${inr(f.invested)}</td>
+    <td class="r">${inr(curr)}</td>
+    <td class="r" style="color:${cc(pnl)}">${pnl>=0?'+':''}${inr(Math.abs(pnl))}</td>
+    <td class="r">${pill(ret)}</td></tr>`;
+}
+
+function usRow(h, i) {
+  const p = prices[h.sym];
+  const invUSD = h.qty * h.avg, invINR = invUSD * FX.usd;
+  if (!p) return `<tr>
+    <td><div class="iname">${h.sym}</div><div class="isub">${h.name}</div></td>
+    <td class="r">${h.qty.toFixed(4)}</td><td class="r">${usd(h.avg)}</td>
+    <td class="r" style="color:var(--muted2)">—</td>
+    <td class="r">${inr(invINR)}</td><td class="r">—</td><td class="r">${usd(invUSD)}</td><td class="r">—</td><td class="r">—</td></tr>`;
+  const valUSD = h.qty * p, valINR = valUSD * FX.usd;
+  const pnlINR = valINR - invINR, ret = (pnlINR/invINR)*100;
+  return `<tr>
+    <td><div class="iname">${h.sym}</div><div class="isub">${h.name}</div></td>
+    <td class="r">${h.qty.toFixed(4)}</td>
+    <td class="r">${usd(h.avg)}</td>
+    <td class="r" style="color:var(--accent)">${usd(p)}</td>
+    <td class="r">${inr(invINR)}</td>
+    <td class="r">${inr(valINR)}</td>
+    <td class="r" style="color:var(--muted)">${usd(valUSD)}</td>
+    <td class="r" style="color:${cc(pnlINR)}">${pnlINR>=0?'+':''}${inr(Math.abs(pnlINR))}</td>
+    <td class="r">${pill(ret)}</td></tr>`;
+}
+
+// ── COMPUTE TOTALS ───────────────────────────────────────────
+function getTotal(arr, getInv, getVal) {
+  return arr.reduce((a,h) => { a.inv += getInv(h); a.val += getVal(h); return a; }, {inv:0,val:0});
+}
+
+function renderAll() {
+  // STOCKS + ICICI direct stocks
+  const iciciStocks = STOCKS.filter(h => h.acc === 'ICICI');
+  const zdStocks    = STOCKS.filter(h => h.acc === 'Zerodha');
+
+  document.getElementById('stocks-body').innerHTML = [...iciciStocks, ...zdStocks].map(stockRow).join('');
+
+  // ETFs
+  document.getElementById('etf-body').innerHTML = ETF_DATA.map(stockRow).join('');
+
+  // Metals
+  document.getElementById('metals-body').innerHTML = METALS_DATA.map(stockRow).join('');
+
+  // MFs
+  document.getElementById('coin-body').innerHTML = COIN_MFS.map(mfRow).join('');
+  document.getElementById('groww-body').innerHTML = GROWW_ELSS.map(mfRow).join('');
+
+  // US
+  document.getElementById('usa-body').innerHTML = US_DATA.map((h,i) => usRow(h,i)).join('');
+
+  // PEE
+  document.getElementById('pee-body').innerHTML = PEE_DATA.map(p => {
+    const valINR = p.eurVal * FX.eur;
+    return `<tr>
+      <td><div class="iname">${p.name}</div></td>
+      <td class="r">${eur(p.eurVal)}</td>
+      <td class="r">${inr(valINR)}</td>
+      <td class="r"><span class="pill p-neu">${p.type}</span></td></tr>`;
+  }).join('');
+
+  // ── COMPUTE ACCOUNT TOTALS ──
+  const val = (arr, getPrice) => arr.reduce((s,h) => {
+    const p = getPrice(h); return s + (p ? h.qty*p : h.qty*h.avg); }, 0);
+
+  const iciciInv = iciciStocks.reduce((s,h)=>s+h.qty*h.avg,0);
+  const iciciVal = iciciStocks.reduce((s,h)=>s+(prices[h.sym]?h.qty*prices[h.sym]:h.qty*h.avg),0);
+
+  const zdStocksInv = zdStocks.reduce((s,h)=>s+h.qty*h.avg,0);
+  const zdStocksVal = zdStocks.reduce((s,h)=>s+(prices[h.sym]?h.qty*prices[h.sym]:h.qty*h.avg),0);
+
+  const etfInv = ETF_DATA.reduce((s,h)=>s+h.qty*h.avg,0);
+  const etfVal = ETF_DATA.reduce((s,h)=>s+(prices[h.sym]?h.qty*prices[h.sym]:h.qty*h.avg),0);
+
+  const metInv = METALS_DATA.reduce((s,h)=>s+h.qty*h.avg,0);
+  const metVal = METALS_DATA.reduce((s,h)=>s+(prices[h.sym]?h.qty*prices[h.sym]:h.qty*h.avg),0);
+
+  const zdTotalInv = zdStocksInv + etfInv + metInv;
+  const zdTotalVal = zdStocksVal + etfVal + metVal;
+
+  const coinInv = COIN_MFS.reduce((s,f)=>s+f.invested,0);
+  const coinVal = COIN_MFS.reduce((s,f)=>s+f.invested*(f.currNav/f.avgNav),0);
+
+  const growwInv = GROWW_ELSS.reduce((s,f)=>s+f.invested,0);
+  const growwVal = GROWW_ELSS.reduce((s,f)=>s+f.invested*(f.currNav/f.avgNav),0);
+
+  const mfInv = coinInv + growwInv, mfVal = coinVal + growwVal;
+
+  const usInv  = US_DATA.reduce((s,h)=>s+h.qty*h.avg,0) * FX.usd;
+  const usVal  = US_DATA.reduce((s,h)=>s+(prices[h.sym]?h.qty*prices[h.sym]:h.qty*h.avg),0) * FX.usd;
+
+  const peeVal = PEE_DATA.reduce((s,p)=>s+p.eurVal,0) * FX.eur;
+  const peeInv = peeVal; // treat as cost=current for PEE
+
+  const totalInv = iciciInv + zdTotalInv + mfInv + usInv + peeInv;
+  const totalVal = iciciVal + zdTotalVal + mfVal + usVal + peeVal;
+  const totalPnl = totalVal - totalInv;
+  const totalRet = (totalPnl/totalInv)*100;
+
+  // Update table metas
+  const metaStr = (inv,val) => {
+    const pnl=val-inv, r=(pnl/inv)*100;
+    return `Invested ${inr(inv)} · Value ${inr(val)} · <span style="color:${cc(pnl)}">${pnl>=0?'+':''}${inr(Math.abs(pnl))} (${pct(r)})</span>`;
+  };
+  document.getElementById('stocks-meta').innerHTML = metaStr(iciciInv,iciciVal);
+  document.getElementById('etf-meta').innerHTML = metaStr(etfInv,etfVal);
+  document.getElementById('metals-meta').innerHTML = metaStr(metInv,metVal);
+  document.getElementById('coin-meta').innerHTML = metaStr(coinInv,coinVal);
+  document.getElementById('groww-meta').innerHTML = metaStr(growwInv,growwVal);
+  document.getElementById('usa-meta').innerHTML = metaStr(usInv,usVal) + ` <span style="color:var(--muted)">· ${usd(US_DATA.reduce((s,h)=>s+h.qty*(prices[h.sym]||h.avg),0))}</span>`;
+  document.getElementById('pee-meta').innerHTML = `Total ${eur(PEE_DATA.reduce((s,p)=>s+p.eurVal,0))} = ${inr(peeVal)} at ₹${FX.eur}/€`;
+
+  // ── NETWORTH BANNER ──
+  document.getElementById('nw-total').textContent = inr(totalVal);
+  const pnlEl = document.getElementById('nw-pnl');
+  pnlEl.textContent = `${totalPnl>=0?'+':''}${inr(Math.abs(totalPnl))} (${pct(totalRet)}) overall`;
+  pnlEl.style.color = cc(totalPnl);
+
+  const accounts = [
+    { label:'ICICI Direct',     inv:iciciInv,   val:iciciVal },
+    { label:'Zerodha',          inv:zdTotalInv, val:zdTotalVal },
+    { label:'Mutual Funds',     inv:mfInv,      val:mfVal },
+    { label:'US Stocks',        inv:usInv,      val:usVal },
+    { label:'Schneider PEE',    inv:peeInv,     val:peeVal },
+  ];
+  document.getElementById('nw-accounts').innerHTML = accounts.map(a => {
+    const pnl=a.val-a.inv, ret=(pnl/a.inv)*100;
+    return `<div class="nw-acc">
+      <div class="nw-acc-label">${a.label}</div>
+      <div class="nw-acc-val">${inr(a.val)}</div>
+      <div class="nw-acc-pnl" style="color:${cc(pnl)}">${pnl>=0?'+':''}${inr(Math.abs(pnl))} (${pct(ret)})</div>
+    </div>`;
+  }).join('');
+
+  // ── ANALYTICS ──
+  const allocAccount = [
+    { label:'ICICI Direct stocks', val:iciciVal, color:'#6ee7b7' },
+    { label:'Zerodha ETFs+stocks', val:zdTotalVal, color:'#60a5fa' },
+    { label:'Mutual funds',        val:mfVal,    color:'#a78bfa' },
+    { label:'Schneider PEE',       val:peeVal,   color:'#fbbf24' },
+    { label:'US stocks',           val:usVal,    color:'#f472b6' },
+  ];
+  renderBars('alloc-account', allocAccount, totalVal);
+
+  const allocAsset = [
+    { label:'Indian equities',   val:iciciVal+zdStocksVal, color:'#6ee7b7' },
+    { label:'Index ETFs (India)',val:etfVal,               color:'#60a5fa' },
+    { label:'Mutual funds',      val:mfVal,                color:'#a78bfa' },
+    { label:'Metals (Gold+SGB)', val:metVal,               color:'#fbbf24' },
+    { label:'Employee stock',    val:peeVal,               color:'#fb923c' },
+    { label:'US equities',       val:usVal,                color:'#f472b6' },
+  ];
+  renderBars('alloc-asset', allocAsset, totalVal);
+
+  const allocCountry = [
+    { label:'India',  val:iciciVal+zdTotalVal+mfVal, color:'#6ee7b7' },
+    { label:'France (Schneider)', val:peeVal,         color:'#fbbf24' },
+    { label:'USA',    val:usVal,                      color:'#60a5fa' },
+  ];
+  renderBars('alloc-country', allocCountry, totalVal);
+
+  // Cap allocation
+  const lcStocks = STOCKS.filter(h=>h.cap==='large');
+  const mcStocks = STOCKS.filter(h=>h.cap==='mid');
+  const scStocks = STOCKS.filter(h=>h.cap==='small');
+  const lcVal = lcStocks.reduce((s,h)=>s+(prices[h.sym]?h.qty*prices[h.sym]:h.qty*h.avg),0);
+  const mcVal = mcStocks.reduce((s,h)=>s+(prices[h.sym]?h.qty*prices[h.sym]:h.qty*h.avg),0) + etfVal*0.5;
+  const scVal = scStocks.reduce((s,h)=>s+(prices[h.sym]?h.qty*prices[h.sym]:h.qty*h.avg),0);
+  const allocCap = [
+    { label:'Large cap', val:lcVal, color:'#6ee7b7' },
+    { label:'Mid cap',   val:mcVal, color:'#60a5fa' },
+    { label:'Small cap', val:scVal, color:'#a78bfa' },
+    { label:'MFs (mixed)', val:mfVal, color:'#94a3b8' },
+  ];
+  renderBars('alloc-cap', allocCap, totalVal);
+
+  // Summary stats
+  const winCount = [...STOCKS,...ETF_DATA,...METALS_DATA].filter(h=>prices[h.sym]&&prices[h.sym]>h.avg).length;
+  const loseCount = [...STOCKS,...ETF_DATA,...METALS_DATA].filter(h=>prices[h.sym]&&prices[h.sym]<h.avg).length;
+  document.getElementById('summary-stats').innerHTML = [
+    { l:'Total invested', v:inr(totalInv) },
+    { l:'Total current value', v:inr(totalVal) },
+    { l:'Overall gain/loss', v:`<span style="color:${cc(totalPnl)}">${totalPnl>=0?'+':''}${inr(Math.abs(totalPnl))}</span>` },
+    { l:'Overall return', v:`<span style="color:${cc(totalRet)}">${pct(totalRet)}</span>` },
+    { l:'Winning positions', v:`${winCount} holdings` },
+    { l:'Losing positions',  v:`${loseCount} holdings` },
+    { l:'Best performer', v:'LARTOU / SGB +221%' },
+    { l:'Worst performer', v:'KWAWAL -37.95%' },
+    { l:'USD/INR rate used', v:`₹${FX.usd}` },
+    { l:'EUR/INR rate used', v:`₹${FX.eur}` },
+  ].map(s=>`<div class="stat-row"><span class="stat-lbl">${s.l}</span><span class="stat-val">${s.v}</span></div>`).join('');
+}
+
+function renderBars(id, data, total) {
+  const sorted = [...data].sort((a,b)=>b.val-a.val);
+  document.getElementById(id).innerHTML = sorted.map(d => {
+    const p = (d.val/total*100);
+    return `<div class="bar-row">
+      <div class="bar-lbl">${d.label}</div>
+      <div class="bar-bg"><div class="bar-fill" style="width:${Math.max(p,1)}%;background:${d.color};"></div></div>
+      <div class="bar-pct">${p.toFixed(1)}%</div>
+      <div class="bar-val">${inr(d.val)}</div>
+    </div>`;
+  }).join('');
+}
+
+// ── TAB SWITCHING ────────────────────────────────────────────
+function showTab(name, el) {
+  document.querySelectorAll('.sec').forEach(s=>s.classList.remove('active'));
+  document.querySelectorAll('.ntab').forEach(t=>t.classList.remove('active'));
+  document.getElementById('sec-'+name).classList.add('active');
+  el.classList.add('active');
+}
+
+// ── INIT ─────────────────────────────────────────────────────
+function init() { fetchAllPrices(); }
+init();
+</script>
+</body>
+</html>
