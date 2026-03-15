@@ -385,9 +385,22 @@ tbody tr:hover td{background:rgba(255,255,255,0.015);}
       <div class="chart-wrap" style="height:240px;"><canvas id="chart-stack"></canvas></div>
     </div>
     <div class="ccard">
-      <div class="ccard-title">Bi-monthly change %</div>
-      <div class="ccard-sub">Each entry vs previous</div>
-      <div class="chart-wrap" style="height:240px;"><canvas id="chart-change"></canvas></div>
+      <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:8px;margin-bottom:4px;">
+        <div class="ccard-title" style="margin:0;">Asset class history</div>
+        <select id="asset-select" onchange="renderAssetChart()" style="background:var(--bg3);border:1px solid var(--border2);color:var(--text);font-family:var(--fm);font-size:11px;padding:4px 8px;border-radius:6px;outline:none;cursor:pointer;">
+          <option value="elss">ELSS</option>
+          <option value="coinMF">Coin MF</option>
+          <option value="icici">ICICI Equity</option>
+          <option value="wesop">Wesop/PEE (INR)</option>
+          <option value="zd">Zerodha</option>
+          <option value="us">US Stocks</option>
+          <option value="other">Teatings</option>
+          <option value="epf">EPF</option>
+          <option value="cash">Cash</option>
+        </select>
+      </div>
+      <div class="ccard-sub" id="asset-chart-sub" style="margin-bottom:10px;">Full value history of selected asset class</div>
+      <div class="chart-wrap" style="height:240px;"><canvas id="chart-asset"></canvas></div>
     </div>
   </div>
 
@@ -1103,7 +1116,8 @@ function renderHCharts() {
   // Change % bar
   dChart('change');
   const changes=d.map((r,i)=>i===0?0:((r.nw-d[i-1].nw)/d[i-1].nw*100));
-  hCharts['change']=new Chart(document.getElementById('chart-change'),{type:'bar',data:{labels,datasets:[{label:'Change %',data:changes,backgroundColor:changes.map(v=>v>=0?'rgba(74,222,128,0.7)':'rgba(248,113,113,0.7)'),borderRadius:2}]},options:{...hChartOpts({scales:{x:{display:false},y:{...hChartOpts().scales.y,ticks:{color:'#7a7a78',font:{size:10},callback:v=>v.toFixed(1)+'%'}}}}),plugins:{...hChartOpts().plugins,tooltip:{...hChartOpts().plugins.tooltip,callbacks:{label:ctx=>` ${rp(ctx.parsed.y)}`}}}}});
+  // Bi-monthly change chart removed — replaced by asset class history dropdown
+
 
   // Wesop EUR
   dChart('wesop');
