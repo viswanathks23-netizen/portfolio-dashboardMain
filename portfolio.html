@@ -238,6 +238,14 @@ tbody tr:hover td{background:rgba(255,255,255,0.015);}
     </div>
   </div>
   <div class="acc-strip" id="acc-strip"></div>
+<div id="misc-bar" style="display:none;margin-top:10px;background:var(--bg3);border-radius:8px;padding:10px 14px;font-size:11px;color:var(--muted);display:flex;gap:16px;flex-wrap:wrap;align-items:center;">
+  <span style="color:var(--muted2);font-size:10px;text-transform:uppercase;letter-spacing:.06em;">From sheet</span>
+  <span id="misc-vehicle"></span>
+  <span id="misc-cards"></span>
+  <span id="misc-reimb"></span>
+  <span id="misc-cc"></span>
+  <span id="misc-asof" style="color:var(--muted2);font-size:10px;margin-left:auto;"></span>
+</div>
 </div>
 
 <div class="nav">
@@ -364,7 +372,15 @@ tbody tr:hover td{background:rgba(255,255,255,0.015);}
   <div class="chart-grid-2">
     <div class="ccard">
       <div class="ccard-title">Asset class breakdown over time</div>
-      <div class="ccard-sub">Toggle to compare specific classes</div>
+      <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:6px;margin-bottom:8px;">
+        <div class="ccard-sub" style="margin:0;">Toggle to compare</div>
+        <div style="display:flex;gap:4px;" id="stack-range-btns">
+          <button class="fbtn" onclick="setStackRange(6,this)" style="font-size:10px;padding:2px 8px;">6M</button>
+          <button class="fbtn" onclick="setStackRange(12,this)" style="font-size:10px;padding:2px 8px;">1Y</button>
+          <button class="fbtn" onclick="setStackRange(24,this)" style="font-size:10px;padding:2px 8px;">2Y</button>
+          <button class="fbtn active" onclick="setStackRange(0,this)" style="font-size:10px;padding:2px 8px;">All</button>
+        </div>
+      </div>
       <div id="stack-toggles" style="display:flex;flex-wrap:wrap;gap:5px;margin-bottom:10px;"></div>
       <div class="chart-wrap" style="height:240px;"><canvas id="chart-stack"></canvas></div>
     </div>
@@ -636,7 +652,11 @@ function calc() {
   const peeINR={inv:peeEUR*FX.eur,val:peeEUR*FX.eur};
   const startup=STARTUP.reduce((a,o)=>({inv:a.inv+o.inv,val:a.val+o.curr}),{inv:0,val:0});
   const govt=GOVT.reduce((a,o)=>({inv:a.inv+o.inv,val:a.val+o.curr}),{inv:0,val:0});
-  const total={inv:icici.inv+zdst.inv+etfs.inv+metals.inv+mfs.inv+usINR.inv+peeINR.inv+startup.inv+govt.inv,val:icici.val+zdst.val+etfs.val+metals.val+mfs.val+usINR.val+peeINR.val+startup.val+govt.val};
+  // Misc items from Google Sheet (latest row) — vehicle, gift cards, reimbursements minus CC dues and subscriptions
+  const miscVal = SHEET_MISC.loaded
+    ? SHEET_MISC.vehicle + SHEET_MISC.amazon + SHEET_MISC.myntra + SHEET_MISC.uber + SHEET_MISC.reimb - SHEET_MISC.cc - SHEET_MISC.subs
+    : 0;
+  const total={inv:icici.inv+zdst.inv+etfs.inv+metals.inv+mfs.inv+usINR.inv+peeINR.inv+startup.inv+govt.inv,val:icici.val+zdst.val+etfs.val+metals.val+mfs.val+usINR.val+peeINR.val+startup.val+govt.val+miscVal};
   const exPee={inv:total.inv-peeINR.inv,val:total.val-peeINR.val};
   const equity={inv:icici.inv+zdst.inv+etfs.inv+metals.inv+mfs.inv+usINR.inv,val:icici.val+zdst.val+etfs.val+metals.val+mfs.val+usINR.val};
   return{icici,zdst,etfs,metals,coin,groww,mfs,usRaw,usINR,peeINR,peeEUR,startup,govt,total,exPee,equity};
@@ -672,6 +692,17 @@ function renderAll() {
 
   const pnl=T.total.val-T.total.inv,ret=pnl/T.total.inv*100;
   document.getElementById('nw-total').textContent=ri(T.total.val);
+  // Update misc bar
+  if(SHEET_MISC.loaded){
+    const mb=document.getElementById('misc-bar');
+    if(mb){mb.style.display='flex';}
+    const gifts=SHEET_MISC.amazon+SHEET_MISC.myntra+SHEET_MISC.uber;
+    if(document.getElementById('misc-vehicle'))document.getElementById('misc-vehicle').innerHTML=SHEET_MISC.vehicle>0?`Vehicle <strong style="color:var(--text)">${ri(SHEET_MISC.vehicle)}</strong>`:'';
+    if(document.getElementById('misc-cards'))document.getElementById('misc-cards').innerHTML=gifts>0?`Gift cards <strong style="color:var(--text)">${ri(gifts)}</strong>`:'';
+    if(document.getElementById('misc-reimb'))document.getElementById('misc-reimb').innerHTML=SHEET_MISC.reimb>0?`Reimb <strong style="color:var(--pos)">${ri(SHEET_MISC.reimb)}</strong>`:'';
+    if(document.getElementById('misc-cc'))document.getElementById('misc-cc').innerHTML=SHEET_MISC.cc>0?`CC dues <strong style="color:var(--neg)">-${ri(SHEET_MISC.cc)}</strong>`:'';
+    if(document.getElementById('misc-asof'))document.getElementById('misc-asof').textContent=`Sheet values as of ${SHEET_MISC.asOf?SHEET_MISC.asOf.toLocaleDateString('en-IN',{day:'2-digit',month:'short',year:'2-digit'}):'—'}`;
+  }
   const pe2=document.getElementById('nw-pnl');pe2.textContent=`${pnl>=0?'+':''}${ri(Math.abs(pnl))} overall (${rp(ret)})`;pe2.style.color=cc(pnl);
   const xpnl=T.exPee.val-T.exPee.inv,xret=xpnl/T.exPee.inv*100;
   document.getElementById('nw-expee').textContent=ri(T.exPee.val);
@@ -754,7 +785,11 @@ const H_URLS=[
   'https://docs.google.com/spreadsheets/d/e/2PACX-1vQCB7qLJTI5mnTgr_B7Z6IOKtujrd_Yt1bJEve5BsatfOtBSLU4wBMIatuLt-96jx0yBXlBXTValrmq/pub?gid=1240870620&single=true&output=csv',
 ];
 
-const HC={date:0,coinMF:1,elss:7,icici:13,wesop:23,zd:32,us:41,other:43,cash:45,epf:47,cc:57,debt:60,nw:64,vix:17};
+const HC={date:0,coinMF:1,elss:7,icici:13,wesop:23,zd:32,us:41,other:43,cash:45,epf:47,
+  cc:57,subs:58,debt:60,nw:64,vix:17,
+  vehicle:49,amazon:50,myntra:51,uber:52,reimb:66};
+// Latest misc values pulled from sheet for live portfolio reconciliation
+let SHEET_MISC={vehicle:0,amazon:0,myntra:0,uber:0,reimb:0,subs:0,cc:0,loaded:false,asOf:null};
 const US_START=new Date('2026-01-15');
 let allData=[],filteredData=[],hCharts={},historyLoaded=false,annualMode='inr';
 
@@ -804,7 +839,26 @@ function parseSheet(text) {
       cc:hNum(r[HC.cc]),debt:hNum(r[HC.debt]),nw,vix:hNum(r[HC.vix])*100});
   }
   const seen={};rows.forEach(r=>{seen[r.date.toISOString()]=r;});
-  return Object.values(seen).sort((a,b)=>a.date-b.date);
+  const sorted=Object.values(seen).sort((a,b)=>a.date-b.date);
+  // Extract misc from the latest real row for live portfolio
+  for(let i=lines.length-1;i>=start;i--){
+    const r=lines[i];if(!r[HC.date])continue;
+    const d=new Date(r[HC.date]);if(isNaN(d.getTime()))continue;
+    const nw=hNum(r[HC.nw]);if(nw<=0)continue;
+    SHEET_MISC={
+      vehicle: Math.max(0,hNum(r[HC.vehicle])),
+      amazon:  Math.max(0,hNum(r[HC.amazon])),
+      myntra:  Math.max(0,hNum(r[HC.myntra])),
+      uber:    Math.max(0,hNum(r[HC.uber])),
+      reimb:   Math.max(0,hNum(r[HC.reimb])),
+      subs:    Math.max(0,hNum(r[HC.subs])),
+      cc:      Math.max(0,hNum(r[HC.cc])),
+      loaded:  true,
+      asOf:    d,
+    };
+    break;
+  }
+  return sorted;
 }
 
 async function loadHistory() {
@@ -822,6 +876,8 @@ async function loadHistory() {
   renderHCharts();
   renderAnnualTable();
   renderRecentTable();
+  // SHEET_MISC is now populated — update live portfolio net worth to include misc items
+  renderAll();
   statusEl.textContent=`Sheet loaded · ${allData.length} entries · ${fmtD(allData[0].date)} → ${fmtD(allData[allData.length-1].date)} · refreshes on page load`;
 }
 
@@ -895,20 +951,69 @@ function hChartOpts(extra={}) {
 }
 function dChart(id){if(hCharts[id]){hCharts[id].destroy();hCharts[id]=null;}}
 
+let stackRange = 0; // 0 = all, else months
+
+function setStackRange(months, el) {
+  stackRange = months;
+  document.querySelectorAll('#stack-range-btns .fbtn').forEach(b => b.classList.remove('active'));
+  el.classList.add('active');
+  // Re-render only the stack chart with new range
+  const tw = document.getElementById('stack-toggles');
+  const hiddenKeys = tw ? Array.from(tw.querySelectorAll('.fbtn:not(.active)')).map(b => b.dataset.key) : [];
+  renderStackChart(hiddenKeys);
+}
+
+function getStackData() {
+  if (!stackRange) return filteredData;
+  const cut = new Date(); cut.setMonth(cut.getMonth() - stackRange);
+  return filteredData.filter(r => r.date >= cut);
+}
+
+function renderStackChart(hiddenKeys=[]) {
+  dChart('stack');
+  const d = getStackData();
+  const labels = d.map(r => fmtD(r.date));
+  const stackSets=[{key:'wesop',label:'Wesop/PEE',color:HCOLS.wesop},{key:'icici',label:'ICICI',color:HCOLS.icici},{key:'zd',label:'Zerodha',color:HCOLS.zd},{key:'elss',label:'ELSS',color:HCOLS.elss},{key:'coinMF',label:'Coin MF',color:HCOLS.coinMF},{key:'cash',label:'Cash',color:HCOLS.cash},{key:'epf',label:'EPF',color:HCOLS.epf},{key:'other',label:'Teatings',color:HCOLS.other},{key:'us',label:'US',color:HCOLS.us}];
+  // Build toggles once
+  const tw = document.getElementById('stack-toggles');
+  if (tw && !tw.dataset.built) {
+    tw.dataset.built = '1';
+    stackSets.forEach(s => {
+      const b = document.createElement('button');
+      b.className = 'fbtn active'; b.dataset.key = s.key;
+      b.style.cssText = `border-color:${s.color};color:${s.color};background:${s.color}22;font-size:10px;padding:3px 9px;`;
+      b.textContent = s.label;
+      b.onclick = () => {
+        const on = b.classList.contains('active'); b.classList.toggle('active');
+        b.style.background = on ? 'transparent' : s.color + '22';
+        b.style.color = on ? 'var(--muted)' : s.color;
+        b.style.borderColor = on ? 'var(--border)' : s.color;
+        if (hCharts['stack']) { const ds = hCharts['stack'].data.datasets.find(x => x._key === s.key); if (ds) { ds.hidden = on; hCharts['stack'].update(); } }
+      };
+      tw.appendChild(b);
+    });
+  }
+  hCharts['stack'] = new Chart(document.getElementById('chart-stack'), {
+    type:'line',
+    data:{labels, datasets:stackSets.map(s => ({
+      label:s.label, data:d.map(r=>r[s.key]), borderColor:s.color,
+      backgroundColor:s.color+'55', borderWidth:1.5, fill:true,
+      tension:0.3, pointRadius:0, _key:s.key,
+      hidden: hiddenKeys.includes(s.key),
+    }))},
+    options:{...hChartOpts({scales:{x:{...hChartOpts().scales.x,stacked:true},y:{...hChartOpts().scales.y,stacked:true}}}),
+      plugins:{...hChartOpts().plugins,tooltip:{...hChartOpts().plugins.tooltip,callbacks:{label:ctx=>` ${ctx.dataset.label}: ${ri(ctx.parsed.y)}`}}}
+    }
+  });
+}
+
 function renderHCharts() {
   const d=filteredData,labels=d.map(r=>fmtD(r.date));
   dChart('nw');
   hCharts['nw']=new Chart(document.getElementById('chart-nw'),{type:'line',data:{labels,datasets:[{label:'Net Worth',data:d.map(r=>r.nw),borderColor:HCOLS.nw,backgroundColor:'rgba(110,231,183,0.08)',borderWidth:2,pointRadius:d.length>60?0:3,pointHoverRadius:5,fill:true,tension:0.3}]},options:{...hChartOpts(),plugins:{...hChartOpts().plugins,tooltip:{...hChartOpts().plugins.tooltip,callbacks:{label:ctx=>' '+ri(ctx.parsed.y)}}}}});
 
-  // Stack chart with toggles
-  dChart('stack');
-  const stackSets=[{key:'wesop',label:'Wesop/PEE',color:HCOLS.wesop},{key:'icici',label:'ICICI',color:HCOLS.icici},{key:'zd',label:'Zerodha',color:HCOLS.zd},{key:'elss',label:'ELSS',color:HCOLS.elss},{key:'coinMF',label:'Coin MF',color:HCOLS.coinMF},{key:'cash',label:'Cash',color:HCOLS.cash},{key:'epf',label:'EPF',color:HCOLS.epf},{key:'other',label:'Teatings',color:HCOLS.other},{key:'us',label:'US',color:HCOLS.us}];
-  const tw=document.getElementById('stack-toggles');
-  if(!tw.dataset.built){
-    tw.dataset.built='1';
-    stackSets.forEach(s=>{const b=document.createElement('button');b.className='fbtn active';b.dataset.key=s.key;b.style.cssText=`border-color:${s.color};color:${s.color};background:${s.color}22;font-size:10px;padding:3px 9px;`;b.textContent=s.label;b.onclick=()=>{const on=b.classList.contains('active');b.classList.toggle('active');b.style.background=on?'transparent':s.color+'22';b.style.color=on?'var(--muted)':s.color;b.style.borderColor=on?'var(--border)':s.color;if(hCharts['stack']){const ds=hCharts['stack'].data.datasets.find(x=>x._key===s.key);if(ds){ds.hidden=on;hCharts['stack'].update();}}};tw.appendChild(b);});
-  }
-  hCharts['stack']=new Chart(document.getElementById('chart-stack'),{type:'line',data:{labels,datasets:stackSets.map(s=>({label:s.label,data:d.map(r=>r[s.key]),borderColor:s.color,backgroundColor:s.color+'55',borderWidth:1.5,fill:true,tension:0.3,pointRadius:0,_key:s.key}))},options:{...hChartOpts({scales:{x:{...hChartOpts().scales.x,stacked:true},y:{...hChartOpts().scales.y,stacked:true}}}),plugins:{...hChartOpts().plugins,tooltip:{...hChartOpts().plugins.tooltip,callbacks:{label:ctx=>` ${ctx.dataset.label}: ${ri(ctx.parsed.y)}`}}}}});
+  // Stack chart — delegated to renderStackChart() which handles range + toggles
+  renderStackChart();
 
   // Change % bar
   dChart('change');
