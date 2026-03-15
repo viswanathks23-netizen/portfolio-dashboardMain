@@ -786,8 +786,9 @@ const H_URLS=[
 ];
 
 const HC={date:0,coinMF:1,elss:7,icici:13,wesop:23,zd:32,us:41,other:43,cash:45,epf:47,
-  cc:57,subs:58,debt:60,nw:64,vix:17,
-  vehicle:49,amazon:50,myntra:51,uber:52,reimb:66};
+  cc:57,subs:58,debt:60,nw:64,vix:17,vehicle:49,amazon:50,myntra:51,uber:52,reimb:66,
+  elssXirr:9,elssRet:10,elssInv:11,coinXirr:3,coinRet:4,coinInv:5,
+  iciRet:15,iciInv:16,zdRet:30,zdInv:31,wesopEur:20};
 // Latest misc values pulled from sheet for live portfolio reconciliation
 let SHEET_MISC={vehicle:0,amazon:0,myntra:0,uber:0,reimb:0,subs:0,cc:0,loaded:false,asOf:null};
 const US_START=new Date('2026-01-15');
@@ -836,7 +837,13 @@ function parseSheet(text) {
     rows.push({date:d,coinMF:hNum(r[HC.coinMF]),elss:hNum(r[HC.elss]),icici:hNum(r[HC.icici]),
       wesop:hNum(r[HC.wesop]),zd:hNum(r[HC.zd]),us:d>=US_START?usRaw:0,
       other:hNum(r[HC.other]),cash:hNum(r[HC.cash]),epf:hNum(r[HC.epf]),
-      cc:hNum(r[HC.cc]),debt:hNum(r[HC.debt]),nw,vix:hNum(r[HC.vix])*100});
+      cc:hNum(r[HC.cc]),debt:hNum(r[HC.debt]),nw,vix:hNum(r[HC.vix])*100,
+      elssXirr:hNum(r[HC.elssXirr]), elssRet:hNum(r[HC.elssRet]),  elssInv:hNum(r[HC.elssInv]),
+      coinXirr:hNum(r[HC.coinXirr]), coinRet:hNum(r[HC.coinRet]),   coinInv:hNum(r[HC.coinInv]),
+      iciRet:hNum(r[HC.iciRet]),     iciInv:hNum(r[HC.iciInv]),
+      zdRet:hNum(r[HC.zdRet]),       zdInv:hNum(r[HC.zdInv]),
+      wesopEur:hNum(r[HC.wesopEur]),
+    });
   }
   const seen={};rows.forEach(r=>{seen[r.date.toISOString()]=r;});
   const sorted=Object.values(seen).sort((a,b)=>a.date-b.date);
@@ -934,13 +941,41 @@ function renderHeroStats() {
     {label:'Current net worth',val:ri(last.nw),sub:`as of ${fmtD(last.date)}`,sc:'var(--muted)'},
     {label:'Since last entry',val:rp(pnlLast),sub:prev?`${ri(last.nw-prev.nw)}`:'',sc:cc(pnlLast)},
     {label:'1-year growth',val:rp(yrGrowth),sub:oneYrAgo?ri(last.nw-oneYrAgo.nw):'N/A',sc:cc(yrGrowth)},
-    {label:'Total gain since Jul 2020',val:ri(totalGain),sub:rp((totalGain/first.nw)*100),sc:'var(--pos)'},
     {label:'CAGR since inception',val:rp(cagr),sub:`over ${years.toFixed(1)} years`,sc:cc(cagr)},
-    {label:'Wesop share',val:ri(last.wesop),sub:rp(last.wesop/last.nw*100)+' of NW',sc:'var(--muted)'},
     {label:'Peak net worth',val:ri(peak),sub:fmtD(peakRow.date),sc:'var(--muted)'},
     {label:'Total entries',val:allData.length,sub:`${fmtD(first.date)} → ${fmtD(last.date)}`,sc:'var(--muted)'},
   ];
   document.getElementById('hero-stats').innerHTML=stats.map(s=>`<div class="hstat"><div class="hstat-label">${s.label}</div><div class="hstat-val" style="color:${s.sc==='var(--muted)'?'var(--text)':s.sc}">${s.val}</div><div class="hstat-sub" style="color:${s.sc}">${s.sub}</div></div>`).join('');
+
+  // Asset class snapshot strip with XIRR
+  const assetSnap=[
+    {label:'ELSS',       val:last.elss,   inv:last.elssInv, xirr:last.elssXirr, ret:last.elssRet,  tag:'XIRR'},
+    {label:'Coin MF',    val:last.coinMF, inv:last.coinInv, xirr:last.coinXirr, ret:last.coinRet,  tag:'XIRR'},
+    {label:'ICICI Eq',   val:last.icici,  inv:last.iciInv,  xirr:null,          ret:last.iciRet,   tag:'Return'},
+    {label:'Wesop/PEE',  val:last.wesop,  inv:null,         xirr:null,          ret:null,          tag:'EUR'},
+    {label:'Zerodha',    val:last.zd,     inv:last.zdInv,   xirr:null,          ret:last.zdRet,    tag:'Return'},
+    {label:'US Stocks',  val:last.us,     inv:null,         xirr:null,          ret:null,          tag:'Live'},
+    {label:'Teatings',   val:last.other,  inv:last.other,   xirr:null,          ret:0,             tag:'Startup'},
+    {label:'EPF',        val:last.epf,    inv:last.epf,     xirr:null,          ret:0,             tag:'Govt'},
+    {label:'Cash',       val:last.cash,   inv:null,         xirr:null,          ret:null,          tag:'Liquid'},
+  ];
+  const xc = n => n>=0?'var(--pos)':'var(--neg)';
+  document.getElementById('asset-snapshot').innerHTML = assetSnap.filter(a=>a.val>0).map(a=>{
+    const pnl = a.inv ? a.val - a.inv : null;
+    const pnlPct = pnl && a.inv ? (pnl/a.inv*100) : null;
+    const perfLine = a.xirr && a.xirr>0
+      ? `XIRR <strong style="color:${xc(a.xirr)}">${(a.xirr*100).toFixed(1)}%</strong>`
+      : a.ret && a.ret>0
+      ? `Return <strong style="color:${xc(a.ret)}">${(a.ret*100).toFixed(1)}%</strong>`
+      : a.tag==='EUR' ? `<strong style="color:var(--muted)">€${Math.round(last.wesopEur||0).toLocaleString()}</strong>`
+      : `<span style="color:var(--muted2)">${a.tag}</span>`;
+    return `<div class="acc" style="min-width:120px;">
+      <div class="acc-lbl">${a.label}</div>
+      <div class="acc-val">${ri(a.val)}</div>
+      <div class="acc-pnl" style="font-size:10px;margin-top:2px;">${perfLine}</div>
+      ${pnlPct!==null?`<div style="font-size:9px;color:${xc(pnlPct)};margin-top:1px;">${pnlPct>=0?'+':''}${pnlPct.toFixed(1)}% overall</div>`:''}
+    </div>`;
+  }).join('');
   const ms=[{label:'₹10L crossed',val:1e6},{label:'₹25L crossed',val:25e5},{label:'₹50L crossed',val:5e6},{label:'₹75L crossed',val:75e5},{label:'₹1Cr crossed',val:1e7}];
   document.getElementById('milestones-wrap').innerHTML='<div class="milestones">'+ms.map(m=>{const hit=allData.find(r=>r.nw>=m.val);return hit?`<div class="ms"><div class="ms-dot"></div>${m.label} <span>${fmtD(hit.date)}</span></div>`:`<div class="ms" style="opacity:.35"><div class="ms-dot" style="background:var(--muted2)"></div>${m.label} <span>—</span></div>`;}).join('')+'</div>';
 }
@@ -950,6 +985,56 @@ function hChartOpts(extra={}) {
   return {responsive:true,maintainAspectRatio:false,animation:{duration:300},plugins:{legend:{display:false},tooltip:{mode:'index',intersect:false,backgroundColor:'#1c1e22',titleColor:'#f0f0ee',bodyColor:'#7a7a78',borderColor:'rgba(255,255,255,0.1)',borderWidth:1},...(extra.plugins||{})},scales:{x:{grid:{color:'rgba(255,255,255,0.04)'},ticks:{color:'#7a7a78',font:{size:10},maxTicksLimit:10}},y:{grid:{color:'rgba(255,255,255,0.04)'},ticks:{color:'#7a7a78',font:{size:10},callback:v=>v>=1e7?(v/1e7).toFixed(1)+'Cr':v>=1e5?(v/1e5).toFixed(0)+'L':v}},...(extra.scales||{})}};
 }
 function dChart(id){if(hCharts[id]){hCharts[id].destroy();hCharts[id]=null;}}
+
+
+const ASSET_COLORS = {"elss":"#60a5fa","coinMF":"#34d399","icici":"#a78bfa","wesop":"#fbbf24","zd":"#f472b6","us":"#fb923c","other":"#e879f9","epf":"#67e8f9","cash":"#94a3b8"};
+const ASSET_LABELS = {"elss":"ELSS","coinMF":"Coin MF","icici":"ICICI Equity","wesop":"Wesop/PEE (INR)","zd":"Zerodha","us":"US Stocks","other":"Teatings","epf":"EPF","cash":"Cash"};
+
+function renderAssetChart() {
+  const key = document.getElementById('asset-select')?.value || 'elss';
+  const color = ASSET_COLORS[key] || '#6ee7b7';
+  const assetLabel = ASSET_LABELS[key] || key;
+  const d = filteredData.filter(r => r[key] > 0);
+  const labels = d.map(r => fmtD(r.date));
+
+  // Build sub-label with return info
+  const last = d[d.length-1];
+  let sub = assetLabel + ' value history';
+  if (key==='elss' && last && last.elssXirr>0) sub += ' · XIRR ' + (last.elssXirr*100).toFixed(1) + '%';
+  else if (key==='icici' && last && last.iciRet>0) sub += ' · Overall return ' + (last.iciRet*100).toFixed(1) + '%';
+  else if (key==='zd' && last && last.zdRet>0) sub += ' · Profit % ' + (last.zdRet*100).toFixed(1) + '%';
+  else if (key==='coinMF' && last && last.coinRet>0) sub += ' · Return ' + (last.coinRet*100).toFixed(1) + '%';
+  const subEl = document.getElementById('asset-chart-sub');
+  if (subEl) subEl.textContent = sub;
+
+  dChart('asset');
+  hCharts['asset'] = new Chart(document.getElementById('chart-asset'), {
+    type: 'line',
+    data: {
+      labels,
+      datasets: [{
+        label: assetLabel,
+        data: d.map(r => r[key]),
+        borderColor: color,
+        backgroundColor: color + '22',
+        borderWidth: 2, fill: true, tension: 0.3,
+        pointRadius: d.length > 60 ? 0 : 3,
+        pointHoverRadius: 5,
+      }]
+    },
+    options: {
+      ...hChartOpts(),
+      plugins: {
+        ...hChartOpts().plugins,
+        legend: { display: false },
+        tooltip: {
+          ...hChartOpts().plugins.tooltip,
+          callbacks: { label: ctx => ' ' + ri(ctx.parsed.y) }
+        }
+      }
+    }
+  });
+}
 
 let stackRange = 0; // 0 = all, else months
 
@@ -1044,15 +1129,39 @@ function renderAnnualTable() {
   const ykeys=Object.keys(years).sort();
   const cols=[{key:'nw',label:'Net Worth'},{key:'elss',label:'ELSS'},{key:'coinMF',label:'Coin MF'},{key:'icici',label:'ICICI'},{key:'wesop',label:'Wesop/PEE'},{key:'zd',label:'Zerodha'},{key:'us',label:'US Stocks'},{key:'other',label:'Teatings'},{key:'cash',label:'Cash'},{key:'epf',label:'EPF'}];
   let thead='<thead><tr><th>Year</th>';
-  if(annualMode==='inr')thead+='<th class="r">Change</th><th class="r">Chg %</th>';
+  if(annualMode==='inr')thead+='<th class="r">NW Δ (₹)</th><th class="r">NW Δ %</th>';
   else thead+='<th class="r">NW Growth</th>';
   cols.forEach(c=>{thead+=`<th class="r">${c.label}</th>`;});
   thead+='</tr></thead>';
   let prev=null;
   const rowsHTML=ykeys.map(y=>{
     const r=years[y];let row=`<tr><td><strong>${y}</strong></td>`;
-    if(annualMode==='inr'){const chg=prev?r.nw-prev.nw:null,chgP=prev?(chg/prev.nw*100):null;row+=`<td class="r" style="color:${chg!=null?cc(chg):'var(--muted)'}">${chg!=null?(chg>=0?'+':'')+ri(Math.abs(chg)):'—'}</td><td class="r">${chgP!=null?pill(chgP):'—'}</td>`;cols.forEach(c=>{row+=`<td class="r">${r[c.key]>0?ri(r[c.key]):'—'}</td>`;});}
-    else{const chgP=prev?((r.nw-prev.nw)/prev.nw*100):null;row+=`<td class="r">${chgP!=null?pill(chgP):'—'}</td>`;cols.forEach(c=>{if(!prev||!prev[c.key]||prev[c.key]===0){row+=`<td class="r" style="color:var(--muted)">—</td>`;}else{row+=`<td class="r">${pill((r[c.key]-prev[c.key])/prev[c.key]*100)}</td>`;}});}
+    if(annualMode==='inr'){
+      // Value mode: show absolute value + year-on-year change for each holding
+      const chg=prev?r.nw-prev.nw:null,chgP=prev?(chg/prev.nw*100):null;
+      row+=`<td class="r" style="color:${chg!=null?cc(chg):'var(--muted)'}">${chg!=null?(chg>=0?'+':'')+ri(Math.abs(chg)):'—'}</td>`;
+      row+=`<td class="r">${chgP!=null?pill(chgP):'—'}</td>`;
+      cols.forEach(c=>{
+        const val=r[c.key]||0, prevVal=prev?prev[c.key]||0:null;
+        const delta = prevVal!==null ? val-prevVal : null;
+        const deltaStr = delta!==null && val>0 ? `<span style="font-size:9px;color:${cc(delta)};display:block;">${delta>=0?'+':''}${ri(Math.abs(delta))}</span>` : '';
+        row+=`<td class="r">${val>0?ri(val):'—'}${deltaStr}</td>`;
+      });
+    } else {
+      // Growth mode: % change year-on-year per holding
+      const chgP=prev?((r.nw-prev.nw)/prev.nw*100):null;
+      row+=`<td class="r">${chgP!=null?pill(chgP):'—'}</td>`;
+      cols.forEach(c=>{
+        if(!prev||!prev[c.key]||prev[c.key]===0){
+          row+=`<td class="r" style="color:var(--muted2)">—</td>`;
+        } else if(!r[c.key]||r[c.key]===0) {
+          row+=`<td class="r" style="color:var(--muted2)">exited</td>`;
+        } else {
+          const pct=(r[c.key]-prev[c.key])/prev[c.key]*100;
+          row+=`<td class="r">${pill(pct)}</td>`;
+        }
+      });
+    }
     row+='</tr>';prev=r;return row;
   });
   document.getElementById('annual-table-wrap').innerHTML=`<table>${thead}<tbody>${rowsHTML.reverse().join('')}</tbody></table>`;
