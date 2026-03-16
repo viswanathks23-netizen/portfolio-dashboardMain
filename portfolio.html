@@ -98,12 +98,12 @@ body{background:var(--bg);color:var(--text);font-family:var(--fm);font-size:13px
 .acard{background:var(--bg2);border:1px solid var(--border);border-radius:10px;padding:15px 17px;}
 .acard.full{grid-column:1/-1;}
 .acard-title{font-size:10px;color:var(--muted);text-transform:uppercase;letter-spacing:.07em;margin-bottom:11px;}
-.bar-row{display:flex;align-items:center;gap:8px;margin-bottom:7px;}
-.bar-lbl{font-size:11px;color:var(--muted);width:135px;flex-shrink:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
-.bar-bg{flex:1;height:4px;background:var(--muted2);border-radius:2px;overflow:hidden;}
-.bar-fill{height:100%;border-radius:2px;}
-.bar-pct{font-size:11px;color:var(--text);width:34px;text-align:right;}
-.bar-inr{font-size:10px;color:var(--muted);width:68px;text-align:right;}
+.bar-row{display:flex;align-items:center;gap:8px;margin-bottom:9px;}
+.bar-lbl{font-size:11px;color:var(--muted);width:130px;flex-shrink:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
+.bar-bg{flex:1;height:8px;background:rgba(255,255,255,0.08);border-radius:4px;overflow:hidden;min-width:40px;}
+.bar-fill{height:100%;border-radius:4px;transition:width .5s ease;}
+.bar-pct{font-size:11px;color:var(--text);font-weight:500;width:36px;text-align:right;}
+.bar-inr{font-size:10px;color:var(--muted);width:72px;text-align:right;}
 .stat-row{display:flex;justify-content:space-between;padding:6px 0;border-bottom:1px solid var(--border);font-size:12px;}
 .stat-row:last-child{border-bottom:none;}
 .sl{color:var(--muted);}
@@ -554,35 +554,38 @@ function refreshAll() {
 let FX = { usd: null, eur: null };
 
 async function fetchFXRates() {
-  const targets = [
-    { url:'https://open.er-api.com/v6/latest/USD', parse: d => ({ usd: d.rates?.INR, eur: d.rates?.INR / d.rates?.EUR }) },
-    { url:'https://api.exchangerate-api.com/v4/latest/USD', parse: d => ({ usd: d.rates?.INR, eur: d.rates?.INR / d.rates?.EUR }) },
+  // Multiple sources, validate each result
+  const sources = [
+    { url:'https://open.er-api.com/v6/latest/USD',
+      parse: d => ({ usd: d.rates?.INR, eur: d.rates?.INR / d.rates?.EUR }) },
+    { url:'https://api.exchangerate-api.com/v4/latest/USD',
+      parse: d => ({ usd: d.rates?.INR, eur: d.rates?.INR / d.rates?.EUR }) },
+    { url:'https://cdn.jsdelivr.net/npm/@fawazahmed0/currency-api@latest/v1/currencies/usd.json',
+      parse: d => ({ usd: d.usd?.inr, eur: d.usd?.inr / d.usd?.eur }) },
   ];
   const proxies = [u => `https://api.allorigins.win/raw?url=${encodeURIComponent(u)}`];
-  for (const t of targets) {
-    // Try direct first
-    try {
-      const r = await fetch(t.url, { signal: AbortSignal.timeout(6000) });
-      if (r.ok) {
-        const d = await r.json();
-        const rates = t.parse(d);
-        if (rates.usd && rates.usd > 50) { applyFX(rates); return true; }
-      }
-    } catch(e) {}
-    // Try via proxy
-    for (const px of proxies) {
+
+  for (const src of sources) {
+    // Try direct
+    for (const fetcher of [
+      () => fetch(src.url, { signal: AbortSignal.timeout(6000) }).then(r => r.ok ? r.json() : null),
+      () => fetch(proxies[0](src.url), { signal: AbortSignal.timeout(8000) }).then(r => r.ok ? r.text().then(t => JSON.parse(t)) : null),
+    ]) {
       try {
-        const r = await fetch(px(t.url), { signal: AbortSignal.timeout(6000) });
-        if (!r.ok) continue;
-        const txt = await r.text();
-        const d = JSON.parse(txt);
-        const rates = t.parse(d);
-        if (rates.usd && rates.usd > 50) { applyFX(rates); return true; }
+        const d = await fetcher();
+        if (!d) continue;
+        const rates = src.parse(d);
+        if (rates.usd && rates.usd > 70 && rates.usd < 100 &&
+            rates.eur && rates.eur > 80 && rates.eur < 110) {
+          applyFX(rates);
+          return true;
+        }
       } catch(e) {}
     }
   }
-  applyFX({ usd: 84.50, eur: 91.20 });
-  document.getElementById('fx-note').textContent = 'Fallback rates';
+  // Hardcoded fallback
+  applyFX({ usd: 92.50, eur: 106.00 });
+  document.getElementById('fx-note').textContent = 'Fallback rates (92.50/106.00) · Mar 2026';
   return false;
 }
 
@@ -591,7 +594,7 @@ function applyFX(rates) {
   FX.eur = parseFloat(rates.eur.toFixed(2));
   document.getElementById('fx-usd-d').textContent = FX.usd.toFixed(2);
   document.getElementById('fx-eur-d').textContent = FX.eur.toFixed(2);
-  document.getElementById('fx-note').textContent = `Live · ${new Date().toLocaleTimeString('en-IN')}`;
+  document.getElementById('fx-note').textContent = `Live · ${new Date().toLocaleTimeString('en-IN')} · USD/INR & EUR/INR auto-fetched`;
 }
 
 function editFX(c) {
@@ -605,12 +608,14 @@ function editFX(c) {
 }
 
 const KNOWN = {
+  // Indian stocks — 11 Mar 2025 screenshot baseline (live prices fetched on top)
   'LARTOU.NS':3838.80,'RELIANCE.NS':1390.20,'BAJFINANCE.NS':893.65,
   'AFFIND.NS':1411.40,'DMART.NS':3944.80,'DIXON.NS':10618.00,
   'HDFCBANK.NS':833.95,'ICICIBANK.NS':1294.60,'HINDUNILVR.NS':2161.40,
   'TCS.NS':2464.90,'KWAWAL.NS':26.59,'BSE.NS':2837.40,'KPITTECH.NS':683.90,
   'MID150BEES.NS':21.28,'NIFTYBEES.NS':270.56,'GOLDBEES.NS':132.71,
   'SILVERBEES.NS':251.69,'SGBJAN29IX-GB.NS':15898.95,
+  // US stocks — 11 Mar 2025 screenshot baseline (in USD)
   'META':654.07,'NVDA':184.77,'QQQ':607.77,'AMZN':214.33,
   'GOOGL':307.04,'MSFT':405.76,'COPX':83.06,'URA':52.31,
 };
@@ -794,7 +799,7 @@ function renderAll() {
   document.getElementById('nw-inv').textContent=ri(T.total.inv);
   const ge=document.getElementById('nw-gain');ge.textContent=`${pnl>=0?'+':''}${ri(Math.abs(pnl))}`;ge.style.color=cc(pnl);
 
-  const accs=[{lbl:'Stocks',src:'ICICI+Zerodha',inv:sInv,val:sVal},{lbl:'ETF & MF',src:'Coin+Groww',inv:T.etfs.inv+T.mfs.inv,val:T.etfs.val+T.mfs.val},{lbl:'Metals',src:'Gold+Silver+URA+COPX',inv:T.metals.inv,val:T.metals.val},{lbl:'USA',src:`${rd(T.usRaw.val)} USD`,inv:T.usINR.inv,val:T.usINR.val},{lbl:'Schneider PEE',src:`${re(T.peeEUR)} EUR`,inv:T.peeINR.inv,val:T.peeINR.val},{lbl:'Startup',src:'Teatings',inv:T.startup.inv,val:T.startup.val},{lbl:'Govt',src:'EPF',inv:T.govt.inv,val:T.govt.val}];
+  const accs=[{lbl:'Stocks',src:'ICICI+Zerodha',inv:sInv,val:sVal},{lbl:'ETF & MF',src:'NIFTY+MC+Coin+Groww',inv:T.etfs.inv+T.mfs.inv,val:T.etfs.val+T.mfs.val},{lbl:'Metals',src:'Gold+Silver+URA+COPX',inv:T.metals.inv,val:T.metals.val},{lbl:'USA',src:`${rd(T.usRaw.val)} USD`,inv:T.usINR.inv,val:T.usINR.val},{lbl:'Schneider PEE',src:`${re(T.peeEUR)} EUR`,inv:T.peeINR.inv,val:T.peeINR.val},{lbl:'Startup',src:'Teatings',inv:T.startup.inv,val:T.startup.val},{lbl:'Govt',src:'EPF',inv:T.govt.inv,val:T.govt.val}];
   document.getElementById('acc-strip').innerHTML=accs.map(a=>{const p2=a.val-a.inv,r2=p2/a.inv*100;return`<div class="acc"><div class="acc-lbl">${a.lbl}</div><div class="acc-val">${ri(a.val)}</div><div class="acc-pnl" style="color:${cc(p2)}">${p2>=0?'+':''}${ri(Math.abs(p2))} (${rp(r2)})</div><div class="acc-src">${a.src}</div></div>`;}).join('');
 
   const pieData=[{l:'Stocks',v:sVal,c:'#6ee7b7'},{l:'ETF & MF',v:T.etfs.val+T.mfs.val,c:'#60a5fa'},{l:'Metals',v:T.metals.val,c:'#fbbf24'},{l:'USA',v:T.usINR.val,c:'#f472b6'},{l:'PEE (€)',v:T.peeINR.val,c:'#fb923c'},{l:'Startup',v:T.startup.val,c:'#a78bfa'},{l:'Govt',v:T.govt.val,c:'#34d399'}];
@@ -827,16 +832,58 @@ function drawPie(data,total) {
 }
 
 function showTab(n,el) {
-  document.querySelectorAll('.sec').forEach(s=>s.classList.remove('active'));
-  document.querySelectorAll('.ntab').forEach(t=>t.classList.remove('active'));
-  document.getElementById('sec-'+n).classList.add('active');el.classList.add('active');
+  // Only affect .sec and .ntab inside the currently active page
+  const activePage = document.querySelector('.page.active') || document;
+  activePage.querySelectorAll('.sec').forEach(s=>s.classList.remove('active'));
+  activePage.querySelectorAll('.ntab').forEach(t=>t.classList.remove('active'));
+  const target = document.getElementById('sec-'+n);
+  if (target) target.classList.add('active');
+  if (el) el.classList.add('active');
 }
 
 const PXIES=[u=>`https://api.allorigins.win/raw?url=${encodeURIComponent(u)}`,u=>`https://corsproxy.io/?${encodeURIComponent(u)}`];
+// Per-symbol sanity bounds [min, max] — protects against bad Yahoo data
+const PRICE_BOUNDS = {
+  // ETF bounds — tight to prevent 10x scale errors from Yahoo
+  'MID150BEES.NS':    [10, 80],     // ~21 currently
+  'NIFTYBEES.NS':     [180, 450],   // ~270 currently
+  'GOLDBEES.NS':      [90, 300],    // ~133 currently, gold rising
+  'SILVERBEES.NS':    [150, 500],   // ~252 currently
+  'SGBJAN29IX-GB.NS': [5000, 30000],// ~15899 currently
+  // Stocks — wider bands, just catch total nonsense
+  'BSE.NS':           [800, 10000],
+  'KPITTECH.NS':      [200, 3000],
+  'LARTOU.NS':        [1000, 8000],
+  'BAJFINANCE.NS':    [400, 3000],
+  'HDFCBANK.NS':      [500, 2500],
+  'RELIANCE.NS':      [800, 3500],
+  'TCS.NS':           [1500, 5000],
+  'DMART.NS':         [2000, 7000],
+  'DIXON.NS':         [5000, 25000],
+};
+
 async function fetchYahoo(sym) {
   const url=`https://query1.finance.yahoo.com/v8/finance/chart/${encodeURIComponent(sym)}?interval=1d&range=1d`;
   for (const px of PXIES) {
-    try{const r=await fetch(px(url),{signal:AbortSignal.timeout(7000)});if(!r.ok)continue;const o=await r.json();const raw=typeof o.contents==='string'?o.contents:JSON.stringify(o);const d=JSON.parse(raw);const p=d?.chart?.result?.[0]?.meta?.regularMarketPrice;if(p)return p;}catch(e){continue;}
+    try{
+      const r=await fetch(px(url),{signal:AbortSignal.timeout(7000)});
+      if(!r.ok)continue;
+      const o=await r.json();
+      const raw=typeof o.contents==='string'?o.contents:JSON.stringify(o);
+      const d=JSON.parse(raw);
+      const p=d?.chart?.result?.[0]?.meta?.regularMarketPrice;
+      if(!p) continue;
+      // Sanity check: use known bounds if available, else use avg cost ±90%
+      const bounds = PRICE_BOUNDS[sym];
+      if (bounds) {
+        if (p < bounds[0] || p > bounds[1]) { console.warn(`${sym}: price ${p} outside bounds [${bounds}], skipping`); continue; }
+      } else {
+        // Generic check: price shouldn't be >5x or <0.1x of baseline
+        const baseline = KNOWN[sym];
+        if (baseline && (p > baseline * 5 || p < baseline * 0.1)) { console.warn(`${sym}: price ${p} vs baseline ${baseline}, skipping`); continue; }
+      }
+      return p;
+    }catch(e){continue;}
   }
   return null;
 }
