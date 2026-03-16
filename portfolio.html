@@ -258,6 +258,7 @@ tbody tr:hover td{background:rgba(255,255,255,0.015);}
   <button class="ntab" onclick="showTab('startup',this)">Startup</button>
   <button class="ntab" onclick="showTab('govt',this)">Govt</button>
   <button class="ntab" onclick="showTab('risks',this)">Risk Flags</button>
+  <button class="ntab" onclick="showTab('xray',this)">Holdings X-Ray</button>
 </div>
 
 <div class="sec active" id="sec-analytics">
@@ -338,6 +339,66 @@ tbody tr:hover td{background:rgba(255,255,255,0.015);}
     <div class="rcard m"><div class="rtitle">Teatings — illiquid startup, year 2 ops</div><div class="rdesc">₹6L invested. No exit pathway near term. Treat as locked capital.</div></div>
     <div class="rcard l"><div class="rtitle">SGB Jan 2029 — extraordinary, illiquid</div><div class="rdesc">Up 221%. Locked till Jan 2029. No action needed.</div></div>
   </div>
+</div>
+
+<div class="sec" id="sec-xray">
+
+  <!-- Summary strip -->
+  <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(140px,1fr));gap:8px;margin-bottom:18px;" id="xray-summary"></div>
+
+  <!-- Coverage note -->
+  <div style="background:var(--bg3);border:1px solid var(--border);border-radius:8px;padding:10px 14px;font-size:11px;color:var(--muted);margin-bottom:18px;" id="xray-coverage-note"></div>
+
+  <!-- Top 20 bar chart -->
+  <div class="acard" style="margin-bottom:16px;">
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px;flex-wrap:wrap;gap:8px;">
+      <div>
+        <div style="font-family:var(--fd);font-size:13px;font-weight:600;">Top 20 effective holdings</div>
+        <div style="font-size:11px;color:var(--muted);margin-top:2px;">Combined exposure across direct stocks + ETFs + MFs</div>
+      </div>
+      <div style="display:flex;gap:6px;">
+        <button class="fbtn active" id="xray-btn-all" onclick="xrayFilter('all',this)" style="font-size:11px;">All</button>
+        <button class="fbtn" id="xray-btn-known" onclick="xrayFilter('known',this)" style="font-size:11px;">Known only</button>
+      </div>
+    </div>
+    <div id="xray-top20"></div>
+  </div>
+
+  <!-- Bubble chart -->
+  <div class="acard" style="margin-bottom:16px;">
+    <div style="font-family:var(--fd);font-size:13px;font-weight:600;margin-bottom:4px;">Exposure bubble chart</div>
+    <div style="font-size:11px;color:var(--muted);margin-bottom:14px;">Bubble size = effective value · colour = number of vehicles holding it</div>
+    <div style="position:relative;height:320px;" id="xray-bubble-wrap"></div>
+  </div>
+
+  <!-- Overlap heatmap -->
+  <div class="acard" style="margin-bottom:16px;">
+    <div style="font-family:var(--fd);font-size:13px;font-weight:600;margin-bottom:4px;">Overlap — stocks in multiple vehicles</div>
+    <div style="font-size:11px;color:var(--muted);margin-bottom:14px;">Stocks you own both directly AND through ETFs/MFs</div>
+    <div id="xray-overlap"></div>
+  </div>
+
+  <!-- Stacked bar per vehicle -->
+  <div class="acard" style="margin-bottom:16px;">
+    <div style="font-family:var(--fd);font-size:13px;font-weight:600;margin-bottom:4px;">Vehicle breakdown</div>
+    <div style="font-size:11px;color:var(--muted);margin-bottom:14px;">Each vehicle's top holdings as % of that vehicle's value</div>
+    <div id="xray-vehicles"></div>
+  </div>
+
+  <!-- Full table: known + unknown -->
+  <div class="acard">
+    <div style="font-family:var(--fd);font-size:13px;font-weight:600;margin-bottom:4px;">Full holdings table</div>
+    <div style="font-size:11px;color:var(--muted);margin-bottom:12px;">All mapped stocks · then unknown/diversified buckets</div>
+    <div class="tbl-wrap" style="border:none;">
+      <table><thead><tr>
+        <th>#</th><th>Stock / Bucket</th><th class="r">Effective value</th>
+        <th class="r">% of equity</th><th class="r">Vehicles</th><th>Sources</th>
+      </tr></thead>
+      <tbody id="xray-table"></tbody>
+      </table>
+    </div>
+  </div>
+
 </div>
 
 <div class="footer" id="footer-portfolio">Prices via Yahoo Finance · FX rates live · MF NAVs: 11 Mar 2025</div>
@@ -1282,6 +1343,443 @@ async function init() {
 }
 
 init();
+
+// ════════════════════════════════════════════════════════════
+//  HOLDINGS X-RAY
+// ════════════════════════════════════════════════════════════
+
+// Fund composition data — top holdings by weight
+const FUND_COMP = {
+  NIFTYBEES: { name:'Nifty 50 ETF', cov:0.78, h:[
+    ['HDFC Bank',0.1317],['Reliance Industries',0.0942],['ICICI Bank',0.0793],
+    ['Infosys',0.0596],['TCS',0.0440],['Bharti Airtel',0.0382],
+    ['Kotak Mahindra Bank',0.0345],['L&T',0.0318],['Axis Bank',0.0277],
+    ['Sun Pharma',0.0264],['Hindustan Unilever',0.0244],['ITC',0.0228],
+    ['Bajaj Finance',0.0210],['Asian Paints',0.0185],['Titan Company',0.0183],
+    ['Maruti Suzuki',0.0181],['NTPC',0.0168],['Power Grid',0.0159],
+    ['HCL Technologies',0.0158],['Wipro',0.0138],
+  ]},
+  MID150BEES: { name:'Nifty Midcap 150 ETF', cov:0.32, h:[
+    ['Bharat Electronics',0.0196],['Indian Hotels',0.0194],['Dixon Technologies',0.0192],
+    ['Solar Industries',0.0185],['Persistent Systems',0.0182],['Coforge',0.0178],
+    ['Tube Investments',0.0168],['Cummins India',0.0159],['BSE Ltd',0.0146],
+    ['KPIT Technologies',0.0143],['Trent',0.0139],['Varun Beverages',0.0136],
+    ['Max Healthcare',0.0148],['Supreme Industries',0.0162],['Astral Poly',0.0153],
+    ['PI Industries',0.0149],['Mphasis',0.0174],['Voltas',0.0156],
+    ['Kalpataru Projects',0.0133],['KPIT Technologies',0.0143],
+  ]},
+  MIRAE_ELSS: { name:'Mirae Asset ELSS', cov:0.52, h:[
+    ['HDFC Bank',0.0812],['ICICI Bank',0.0731],['Infosys',0.0598],
+    ['Reliance Industries',0.0543],['Axis Bank',0.0432],['L&T',0.0398],
+    ['TCS',0.0376],['Kotak Mahindra Bank',0.0354],['Bharti Airtel',0.0321],['Sun Pharma',0.0287],
+  ]},
+  AXIS_ELSS: { name:'Axis ELSS', cov:0.53, h:[
+    ['Bajaj Finance',0.0743],['ICICI Bank',0.0698],['HDFC Bank',0.0612],
+    ['Avenue Supermarts',0.0534],['TCS',0.0487],['Infosys',0.0432],
+    ['Kotak Mahindra Bank',0.0398],['Reliance Industries',0.0374],
+    ['Pidilite Industries',0.0356],['SBI Life Insurance',0.0297],
+  ]},
+  INVESCO_SC: { name:'Invesco Smallcap', cov:0.48, h:[
+    ['Kaynes Technology',0.0312],['Dodla Dairy',0.0287],['Aarti Pharmalabs',0.0265],
+    ['Ami Organics',0.0254],['Epigral',0.0248],['Gokul Agro',0.0241],
+    ['DCM Shriram',0.0238],['EFC India',0.0231],['Cera Sanitaryware',0.0224],['Emami',0.0218],
+  ]},
+  EDELWEISS_MC: { name:'Edelweiss Mid Cap', cov:0.51, h:[
+    ['Indian Hotels',0.0423],['Persistent Systems',0.0398],['Dixon Technologies',0.0376],
+    ['Bharat Electronics',0.0354],['Coforge',0.0341],['Max Healthcare',0.0328],
+    ['Trent',0.0312],['Cummins India',0.0298],['BSE Ltd',0.0287],['KPIT Technologies',0.0274],
+  ]},
+  PPFAS: { name:'Parag Parikh Flexi Cap', cov:0.56, h:[
+    ['HDFC Bank',0.0876],['Coal India',0.0743],['Alphabet (US)',0.0698],
+    ['Power Grid',0.0612],['ICICI Bank',0.0543],['Meta Platforms (US)',0.0487],
+    ['ITC',0.0432],['Bajaj Holdings',0.0398],['Microsoft (US)',0.0312],['Maruti Suzuki',0.0287],
+  ]},
+  HDFC_FLEXI: { name:'HDFC Flexi Cap', cov:0.55, h:[
+    ['HDFC Bank',0.0923],['ICICI Bank',0.0812],['Infosys',0.0654],
+    ['Axis Bank',0.0543],['Kotak Mahindra Bank',0.0487],['Reliance Industries',0.0432],
+    ['Bharti Airtel',0.0398],['TCS',0.0365],['L&T',0.0321],['Sun Pharma',0.0298],
+  ]},
+  NIPPON_SC: { name:'Nippon Small Cap', cov:0.49, h:[
+    ['KPIT Technologies',0.0398],['Dixon Technologies',0.0376],['Tube Investments',0.0354],
+    ['Bharat Electronics',0.0332],['Kirloskar Brothers',0.0318],['Apar Industries',0.0305],
+    ['Elgi Equipments',0.0287],['Techno Electric',0.0271],['Safari Industries',0.0258],['BEML',0.0246],
+  ]},
+};
+
+// Vehicle color map
+const VEHICLE_COLORS = {
+  'Direct':                 '#6ee7b7',
+  'Nifty 50 ETF':           '#60a5fa',
+  'Nifty Midcap 150 ETF':   '#a78bfa',
+  'Mirae Asset ELSS':       '#fbbf24',
+  'Axis ELSS':              '#f472b6',
+  'Invesco Smallcap':       '#fb923c',
+  'Edelweiss Mid Cap':      '#34d399',
+  'Parag Parikh Flexi Cap': '#e879f9',
+  'HDFC Flexi Cap':         '#67e8f9',
+  'Nippon Small Cap':       '#f87171',
+};
+
+function computeXRay() {
+  const T = calc();
+  // Get current market values per vehicle
+  const vehicles = {
+    NIFTYBEES:   (gp('NIFTYBEES.NS')||268.35) * 380,
+    MID150BEES:  (gp('MID150BEES.NS')||20.03) * 4143,
+    MIRAE_ELSS:  141251,  // NAV-based, use stored value
+    AXIS_ELSS:   33448,
+    INVESCO_SC:  30054,
+    EDELWEISS_MC:132778,
+    PPFAS:       102816,
+    HDFC_FLEXI:  30067,
+    NIPPON_SC:   97652,
+  };
+
+  const direct = {
+    'L&T':                   (gp('LARTOU.NS')||3838.80)*12,
+    'Reliance Industries':   (gp('RELIANCE.NS')||1390.20)*42,
+    'Bajaj Finance':         (gp('BAJFINANCE.NS')||893.65)*141,
+    'Affiliated Industries': (gp('AFFIND.NS')||1411.40)*38,
+    'Avenue Supermarts':     (gp('DMART.NS')||3944.80)*10,
+    'Dixon Technologies':    (gp('DIXON.NS')||10618)*3,
+    'HDFC Bank':             (gp('HDFCBANK.NS')||833.95)*109,
+    'ICICI Bank':            (gp('ICICIBANK.NS')||1294.60)*14,
+    'Hindustan Unilever':    (gp('HINDUNILVR.NS')||2161.40)*12,
+    'TCS':                   (gp('TCS.NS')||2464.90)*7,
+    'Kwa Wal':               (gp('KWAWAL.NS')||26.59)*12,
+    'BSE Ltd':               (gp('BSE.NS')||2837.40)*14,
+    'KPIT Technologies':     (gp('KPITTECH.NS')||683.90)*65,
+  };
+
+  // Build effective exposure map
+  const eff = {};
+
+  function addExposure(stock, val, vehicle) {
+    if (!eff[stock]) eff[stock] = { value:0, sources:[] };
+    eff[stock].value += val;
+    eff[stock].sources.push({ vehicle, value:val });
+  }
+
+  // Direct holdings
+  Object.entries(direct).forEach(([s,v]) => addExposure(s, v, 'Direct'));
+
+  // ETF + MF passthroughs
+  Object.entries(FUND_COMP).forEach(([fkey, fund]) => {
+    const fval = vehicles[fkey] || 0;
+    if (!fval) return;
+    let knownW = 0;
+    fund.h.forEach(([stock, w]) => {
+      addExposure(stock, fval * w, fund.name);
+      knownW += w;
+    });
+    // Unknown bucket
+    const unknownVal = fval * (1 - knownW);
+    addExposure('Unknown · ' + fund.name, unknownVal, fund.name);
+  });
+
+  // Sort by value
+  return Object.entries(eff).sort((a,b) => b[1].value - a[1].value);
+}
+
+let xrayData = [];
+let xrayShowAll = true;
+
+function renderXRay() {
+  xrayData = computeXRay();
+  const known = xrayData.filter(([s]) => !s.startsWith('Unknown'));
+  const unknown = xrayData.filter(([s]) => s.startsWith('Unknown'));
+  const total = xrayData.reduce((s,[,d]) => s+d.value, 0);
+  const totalKnown = known.reduce((s,[,d]) => s+d.value, 0);
+  const totalUnknown = unknown.reduce((s,[,d]) => s+d.value, 0);
+
+  // Summary strip
+  document.getElementById('xray-summary').innerHTML = [
+    { l:'Total equity mapped', v:ri(total) },
+    { l:'Known stocks', v:ri(totalKnown) + ' (' + (totalKnown/total*100).toFixed(0) + '%)' },
+    { l:'Unknown / diversified', v:ri(totalUnknown) + ' (' + (totalUnknown/total*100).toFixed(0) + '%)' },
+    { l:'Unique stocks identified', v:known.length },
+    { l:'Stocks with overlap', v:known.filter(([,d]) => d.sources.length > 1).length },
+    { l:'Vehicles analysed', v:'9 (2 ETF + 7 MF + Direct)' },
+  ].map(s => `<div class="hstat"><div class="hstat-label">${s.l}</div><div class="hstat-val" style="font-size:15px;">${s.v}</div></div>`).join('');
+
+  // Coverage note
+  document.getElementById('xray-coverage-note').innerHTML =
+    `<strong style="color:var(--text)">Coverage note:</strong> MF top-10 holdings cover ~48–56% of each fund's NAV. ` +
+    `ETF (Nifty 50) covers ~78% of index weight. Midcap ETF covers ~32%. ` +
+    `The remaining <strong style="color:var(--warn)">${ri(totalUnknown)} (${(totalUnknown/total*100).toFixed(0)}%)</strong> ` +
+    `is spread across hundreds of smaller holdings and shown as "Unknown" below. ` +
+    `MF data as of Mar 2025 — update manually when funds rebalance significantly.`;
+
+  renderTop20(xrayShowAll);
+  renderBubble(known.slice(0, 30), total);
+  renderOverlap(known.filter(([,d]) => d.sources.length > 1));
+  renderVehicles(vehicles => vehicles);
+  renderXRayTable(known, unknown, total);
+}
+
+function xrayFilter(mode, el) {
+  xrayShowAll = mode === 'all';
+  document.querySelectorAll('#sec-xray .fbtn').forEach(b => b.classList.remove('active'));
+  el.classList.add('active');
+  renderTop20(xrayShowAll);
+}
+
+function renderTop20(showAll) {
+  const known = xrayData.filter(([s]) => !s.startsWith('Unknown'));
+  const unknown = xrayData.filter(([s]) => s.startsWith('Unknown'));
+  const display = showAll ? [...known.slice(0,20), ...unknown.slice(0,5)] : known.slice(0,20);
+  const total = xrayData.reduce((s,[,d]) => s+d.value, 0);
+  const maxVal = display[0]?.[1].value || 1;
+
+  document.getElementById('xray-top20').innerHTML = display.map(([stock, data], i) => {
+    const isUnknown = stock.startsWith('Unknown');
+    const overlap = !isUnknown && data.sources.length > 1;
+    const pct = (data.value/total*100);
+    const barW = (data.value/maxVal*100);
+    const srcCount = data.sources.length;
+    const vehicles = [...new Set(data.sources.map(s => s.vehicle))];
+    // Color the bar by dominant vehicle
+    const domVehicle = data.sources.reduce((a,b) => a.value>b.value?a:b).vehicle;
+    const barColor = VEHICLE_COLORS[domVehicle] || '#6ee7b7';
+
+    return `<div style="display:flex;align-items:center;gap:10px;margin-bottom:8px;${isUnknown?'opacity:.6':''}">
+      <div style="width:22px;font-size:10px;color:var(--muted);text-align:right;flex-shrink:0;">${i+1}</div>
+      <div style="width:180px;font-size:12px;flex-shrink:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;${isUnknown?'color:var(--muted)':''}" title="${stock}">
+        ${isUnknown ? '<span style="font-style:italic">'+stock.replace('Unknown · ','')+'</span>' : stock}
+        ${overlap ? '<span style="font-size:9px;background:var(--warn-bg);color:var(--warn);padding:1px 5px;border-radius:3px;margin-left:4px;">'+srcCount+'×</span>' : ''}
+      </div>
+      <div style="flex:1;height:20px;background:var(--muted2);border-radius:3px;overflow:hidden;position:relative;">
+        <div style="height:100%;width:${barW}%;background:${isUnknown?'rgba(148,163,184,0.4)':barColor};border-radius:3px;position:relative;">
+          ${vehicles.filter(v=>v!==domVehicle).map(v => `<div style="position:absolute;right:0;top:0;height:100%;width:4px;background:${VEHICLE_COLORS[v]||'#fff'};opacity:.7;"></div>`).join('')}
+        </div>
+      </div>
+      <div style="width:70px;text-align:right;font-size:11px;font-variant-numeric:tabular-nums;">${ri(data.value)}</div>
+      <div style="width:42px;text-align:right;font-size:11px;color:var(--muted);">${pct.toFixed(1)}%</div>
+    </div>`;
+  }).join('') +
+  (!showAll ? `<div style="font-size:11px;color:var(--muted);margin-top:8px;padding-top:8px;border-top:1px solid var(--border);">
+    Showing top 20 known stocks. Click "All" to also show unknown/diversified buckets.
+  </div>` : '');
+}
+
+function renderBubble(known, total) {
+  const wrap = document.getElementById('xray-bubble-wrap');
+  wrap.innerHTML = '';
+  const W = wrap.offsetWidth || 600;
+  const H = 320;
+  const svg = document.createElementNS('http://www.w3.org/2000/svg','svg');
+  svg.setAttribute('width',W); svg.setAttribute('height',H);
+  svg.style.width='100%'; svg.style.height='100%';
+  wrap.appendChild(svg);
+
+  const top = known.slice(0,28);
+  const maxV = top[0]?.[1].value || 1;
+  const minR = 18, maxR = 58;
+
+  // Simple force-repel placement
+  const placed = [];
+  top.forEach(([stock, data], i) => {
+    const r = minR + (data.value/maxV)*(maxR-minR);
+    const overlap = data.sources.length > 1;
+    const domV = data.sources.reduce((a,b)=>a.value>b.value?a:b).vehicle;
+    const color = VEHICLE_COLORS[domV] || '#6ee7b7';
+    const pct = (data.value/total*100).toFixed(1);
+
+    // Position in a grid-ish layout with slight randomness
+    const cols = Math.ceil(Math.sqrt(top.length * W / H));
+    const col = i % cols;
+    const row = Math.floor(i / cols);
+    const cellW = W / cols;
+    const cellH = H / Math.ceil(top.length / cols);
+    let cx = cellW * col + cellW/2 + (Math.sin(i*1.7)*cellW*0.15);
+    let cy = cellH * row + cellH/2 + (Math.cos(i*2.3)*cellH*0.15);
+    cx = Math.max(r+4, Math.min(W-r-4, cx));
+    cy = Math.max(r+4, Math.min(H-r-4, cy));
+
+    const g = document.createElementNS('http://www.w3.org/2000/svg','g');
+    g.style.cursor = 'pointer';
+
+    const circle = document.createElementNS('http://www.w3.org/2000/svg','circle');
+    circle.setAttribute('cx',cx); circle.setAttribute('cy',cy); circle.setAttribute('r',r);
+    circle.setAttribute('fill', color+'33');
+    circle.setAttribute('stroke', color);
+    circle.setAttribute('stroke-width', overlap ? '2.5' : '1.5');
+    if (overlap) circle.setAttribute('stroke-dasharray','4,2');
+
+    const label = stock.length > 12 ? stock.substring(0,11)+'…' : stock;
+    const t1 = document.createElementNS('http://www.w3.org/2000/svg','text');
+    t1.setAttribute('x',cx); t1.setAttribute('y', r>=28?cy-4:cy);
+    t1.setAttribute('text-anchor','middle'); t1.setAttribute('fill','#f0f0ee');
+    t1.setAttribute('font-size', r>=35?'10':'9');
+    t1.setAttribute('font-family','DM Mono, monospace');
+    t1.textContent = label;
+
+    const t2 = document.createElementNS('http://www.w3.org/2000/svg','text');
+    t2.setAttribute('x',cx); t2.setAttribute('y', r>=28?cy+10:cy+11);
+    t2.setAttribute('text-anchor','middle'); t2.setAttribute('fill','#7a7a78');
+    t2.setAttribute('font-size','8');
+    t2.setAttribute('font-family','DM Mono, monospace');
+    t2.textContent = pct + '%';
+
+    g.appendChild(circle); g.appendChild(t1);
+    if (r >= 22) g.appendChild(t2);
+
+    // Tooltip on hover
+    const title = document.createElementNS('http://www.w3.org/2000/svg','title');
+    const srcLines = data.sources.map(s=>s.vehicle+': '+ri(s.value)).join(', ');
+    title.textContent = stock + ' — ' + ri(data.value) + ' (' + pct + '%) | ' + srcLines;
+    g.appendChild(title);
+
+    svg.appendChild(g);
+  });
+}
+
+function renderOverlap(overlapping) {
+  const wrap = document.getElementById('xray-overlap');
+  if (!overlapping.length) { wrap.innerHTML = '<div style="color:var(--muted);font-size:12px;">No overlapping holdings found.</div>'; return; }
+
+  // Sort by number of vehicles descending
+  const sorted = [...overlapping].sort((a,b) => b[1].sources.length - a[1].sources.length);
+
+  wrap.innerHTML = sorted.slice(0, 15).map(([stock, data]) => {
+    const total = data.value;
+    const vehicles = data.sources;
+    return `<div style="margin-bottom:14px;">
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:5px;">
+        <span style="font-size:13px;font-weight:500;">${stock}</span>
+        <span style="font-size:11px;color:var(--muted);">${ri(total)} total · <span style="color:var(--warn)">${vehicles.length} vehicles</span></span>
+      </div>
+      <div style="display:flex;gap:2px;height:18px;border-radius:4px;overflow:hidden;">
+        ${vehicles.map(s => {
+          const pct = s.value/total*100;
+          const color = VEHICLE_COLORS[s.vehicle]||'#94a3b8';
+          return `<div style="flex:${pct};background:${color};position:relative;" title="${s.vehicle}: ${ri(s.value)} (${pct.toFixed(1)}%)">
+            <div style="position:absolute;inset:0;display:flex;align-items:center;justify-content:center;">
+              <span style="font-size:8px;color:rgba(0,0,0,.7);white-space:nowrap;overflow:hidden;">${pct>8?s.vehicle.split(' ')[0]:''}</span>
+            </div>
+          </div>`;
+        }).join('')}
+      </div>
+      <div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:4px;">
+        ${vehicles.map(s=>`<span style="font-size:10px;color:var(--muted);">
+          <span style="display:inline-block;width:7px;height:7px;border-radius:2px;background:${VEHICLE_COLORS[s.vehicle]||'#94a3b8'};margin-right:3px;"></span>
+          ${s.vehicle.split(' ').slice(0,2).join(' ')}: ${ri(s.value)}
+        </span>`).join('')}
+      </div>
+    </div>`;
+  }).join('<hr style="border:none;border-top:1px solid var(--border);margin:4px 0;">');
+}
+
+function renderVehicles() {
+  const vehicleList = [
+    { key:'direct', name:'Direct Holdings', color:'#6ee7b7' },
+    { key:'NIFTYBEES', fname:'Nifty 50 ETF' },
+    { key:'MID150BEES', fname:'Nifty Midcap 150 ETF' },
+    { key:'MIRAE_ELSS', fname:'Mirae Asset ELSS' },
+    { key:'AXIS_ELSS', fname:'Axis ELSS' },
+    { key:'EDELWEISS_MC', fname:'Edelweiss Mid Cap' },
+    { key:'PPFAS', fname:'Parag Parikh Flexi Cap' },
+    { key:'HDFC_FLEXI', fname:'HDFC Flexi Cap' },
+    { key:'NIPPON_SC', fname:'Nippon Small Cap' },
+  ];
+
+  const directTotal = Object.values({
+    'L&T':(gp('LARTOU.NS')||3838.80)*12,'Reliance Industries':(gp('RELIANCE.NS')||1390.20)*42,
+    'Bajaj Finance':(gp('BAJFINANCE.NS')||893.65)*141,'HDFC Bank':(gp('HDFCBANK.NS')||833.95)*109,
+    'ICICI Bank':(gp('ICICIBANK.NS')||1294.60)*14,'TCS':(gp('TCS.NS')||2464.90)*7,
+    'Dixon Technologies':(gp('DIXON.NS')||10618)*3,'BSE Ltd':(gp('BSE.NS')||2837.40)*14,
+    'KPIT Technologies':(gp('KPITTECH.NS')||683.90)*65,
+    'Affiliated Industries':(gp('AFFIND.NS')||1411.40)*38,
+    'Avenue Supermarts':(gp('DMART.NS')||3944.80)*10,
+    'Hindustan Unilever':(gp('HINDUNILVR.NS')||2161.40)*12,
+    'Kwa Wal':(gp('KWAWAL.NS')||26.59)*12,
+  }).reduce((a,b)=>a+b,0);
+
+  const mfVals = {
+    NIFTYBEES:(gp('NIFTYBEES.NS')||268.35)*380, MID150BEES:(gp('MID150BEES.NS')||20.03)*4143,
+    MIRAE_ELSS:141251, AXIS_ELSS:33448, INVESCO_SC:30054,
+    EDELWEISS_MC:132778, PPFAS:102816, HDFC_FLEXI:30067, NIPPON_SC:97652,
+  };
+
+  const rows = [
+    // Direct
+    { name:'Direct Holdings', items:[
+      {s:'Bajaj Finance',v:(gp('BAJFINANCE.NS')||893.65)*141},
+      {s:'HDFC Bank',v:(gp('HDFCBANK.NS')||833.95)*109},
+      {s:'Reliance Industries',v:(gp('RELIANCE.NS')||1390.20)*42},
+      {s:'L&T',v:(gp('LARTOU.NS')||3838.80)*12},
+      {s:'KPIT Technologies',v:(gp('KPITTECH.NS')||683.90)*65},
+      {s:'Affiliated Ind.',v:(gp('AFFIND.NS')||1411.40)*38},
+      {s:'Others',v:directTotal-((gp('BAJFINANCE.NS')||893.65)*141+(gp('HDFCBANK.NS')||833.95)*109+(gp('RELIANCE.NS')||1390.20)*42+(gp('LARTOU.NS')||3838.80)*12+(gp('KPITTECH.NS')||683.90)*65+(gp('AFFIND.NS')||1411.40)*38)},
+    ], total:directTotal },
+  ];
+
+  // Add MF/ETF rows
+  Object.entries(FUND_COMP).forEach(([fkey, fund]) => {
+    const fval = mfVals[fkey] || 0;
+    if (!fval) return;
+    const items = fund.h.slice(0,6).map(([s,w])=>({s,v:fval*w}));
+    const knownW = fund.h.reduce((a,[,w])=>a+w,0);
+    items.push({s:'Unknown/Other',v:fval*(1-knownW)});
+    rows.push({name:fund.name, items, total:fval});
+  });
+
+  document.getElementById('xray-vehicles').innerHTML = rows.map(row => {
+    const max = row.items.reduce((a,b)=>Math.max(a,b.v),0);
+    return `<div style="margin-bottom:16px;">
+      <div style="font-size:12px;font-weight:500;color:var(--text);margin-bottom:7px;">${row.name} <span style="color:var(--muted);font-weight:400;">· ${ri(row.total)}</span></div>
+      ${row.items.filter(it=>it.v>0).map(it => {
+        const pct = it.v/row.total*100;
+        const isOther = it.s.includes('Other') || it.s.includes('Unknown');
+        return `<div style="display:flex;align-items:center;gap:8px;margin-bottom:4px;">
+          <div style="width:140px;font-size:11px;color:${isOther?'var(--muted)':'var(--text)'};overflow:hidden;text-overflow:ellipsis;white-space:nowrap;flex-shrink:0;">${it.s}</div>
+          <div style="flex:1;height:12px;background:var(--muted2);border-radius:2px;overflow:hidden;">
+            <div style="height:100%;width:${(it.v/max*100).toFixed(1)}%;background:${isOther?'rgba(148,163,184,0.3)':'#6ee7b7'};border-radius:2px;"></div>
+          </div>
+          <div style="width:65px;text-align:right;font-size:10px;color:var(--muted);font-variant-numeric:tabular-nums;">${ri(it.v)}</div>
+          <div style="width:36px;text-align:right;font-size:10px;color:var(--muted2);">${pct.toFixed(1)}%</div>
+        </div>`;
+      }).join('')}
+    </div>`;
+  }).join('<hr style="border:none;border-top:1px solid var(--border);margin:8px 0 16px;">');
+}
+
+function renderXRayTable(known, unknown, total) {
+  const allRows = [
+    ...known.map(([s,d],i) => ({rank:i+1, stock:s, data:d, isUnknown:false})),
+    ...unknown.map(([s,d],i) => ({rank:known.length+i+1, stock:s.replace('Unknown · ',''), data:d, isUnknown:true})),
+  ];
+
+  document.getElementById('xray-table').innerHTML = allRows.map(row => {
+    const {rank, stock, data, isUnknown} = row;
+    const overlap = !isUnknown && data.sources.length > 1;
+    const vehicles = [...new Set(data.sources.map(s=>s.vehicle))];
+    const srcHTML = data.sources.map(s =>
+      `<span style="font-size:10px;background:${(VEHICLE_COLORS[s.vehicle]||'#94a3b8')}22;color:${VEHICLE_COLORS[s.vehicle]||'#94a3b8'};padding:1px 6px;border-radius:3px;margin-right:3px;white-space:nowrap;">${s.vehicle.split(' ').slice(0,2).join(' ')}: ${ri(s.value)}</span>`
+    ).join('');
+
+    return `<tr style="${isUnknown?'opacity:.6':''}">
+      <td style="color:var(--muted);font-size:11px;">${rank}</td>
+      <td>
+        <div style="font-weight:500;${isUnknown?'font-style:italic;color:var(--muted)':''}">${stock}</div>
+        ${overlap?`<div style="font-size:10px;color:var(--warn);margin-top:1px;">${data.sources.length} vehicles · overlap</div>`:''}
+        ${isUnknown?`<div style="font-size:10px;color:var(--muted2);">Unknown/diversified bucket</div>`:''}
+      </td>
+      <td class="r"><strong>${ri(data.value)}</strong></td>
+      <td class="r">${(data.value/total*100).toFixed(2)}%</td>
+      <td class="r">${data.sources.length}</td>
+      <td style="padding:6px 10px;">${srcHTML}</td>
+    </tr>`;
+  }).join('');
+}
+
+// Called when tab is opened
+const _origShowTab = showTab;
+function showTab(n, el) {
+  _origShowTab(n, el);
+  if (n === 'xray') renderXRay();
+}
+
 </script>
 </body>
 </html>
