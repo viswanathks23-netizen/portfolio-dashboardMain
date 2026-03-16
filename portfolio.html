@@ -379,8 +379,8 @@ tbody tr:hover td{background:rgba(255,255,255,0.015);}
     <div style="display:grid;grid-template-columns:1fr 320px;gap:20px;align-items:start;" id="pie-layout">
       <style>@media(max-width:700px){#pie-layout{grid-template-columns:1fr !important;}}</style>
       <!-- Pie -->
-      <div style="position:relative;">
-        <canvas id="xray-pie" style="width:100%;max-height:520px;cursor:pointer;"></canvas>
+      <div style="position:relative;width:100%;max-width:520px;margin:0 auto;">
+        <canvas id="xray-pie" style="display:block;"></canvas>
         <div id="pie-center-label" style="position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);text-align:center;pointer-events:none;">
           <div style="font-family:var(--fd);font-size:22px;font-weight:700;color:var(--text);" id="pie-center-val">—</div>
           <div style="font-size:11px;color:var(--muted);margin-top:2px;" id="pie-center-name">Hover a slice</div>
@@ -1713,22 +1713,8 @@ function renderTop20(showAll) {
 
 // ── INTERACTIVE PIE CHART ─────────────────────────────────────────────────
 let pieModeAll = true;
-let _pieCurrentData = []; // store reference for legend clicks
-
-function showPieDetailByIdx(idx) {
-  if (!_pieCurrentData[idx]) return;
-  const [stock, data] = _pieCurrentData[idx];
-  const total = pieTotalVal;
-  const colors = _pieCurrentData.map(([s,d], i) => {
-    if (s.startsWith('Unknown')) return 'rgba(148,163,184,0.35)';
-    const domV = d.sources.reduce((a,b)=>a.value>b.value?a:b).vehicle;
-    return VEHICLE_COLORS[domV] || '#6ee7b7';
-  });
-  showPieDetail([stock, data], total, colors[idx]);
-  // Scroll detail panel into view on mobile
-  const panel = document.getElementById('pie-detail-panel');
-  if (panel && window.innerWidth < 700) panel.scrollIntoView({behavior:'smooth'});
-}
+let _pieCurrentData = [];
+let _pieColors = [];
 let pieChartInstance = null;
 let pieAllData = [];
 let pieTotalVal = 0;
@@ -1741,13 +1727,13 @@ function setPieMode(mode, el) {
 }
 
 function buildPieChart(all, total) {
-  pieAllData = all; pieTotalVal = total;
-  const known = all.filter(([s]) => !s.startsWith('Unknown'));
+  pieAllData = all;
+  pieTotalVal = total;
+  const known  = all.filter(([s]) => !s.startsWith('Unknown'));
   const unknown = all.filter(([s]) => s.startsWith('Unknown'));
-  const data = pieModeAll ? [...known, ...unknown] : known;
-  _pieCurrentData = data; // store for legend clicks
+  const data    = pieModeAll ? [...known, ...unknown] : known;
+  _pieCurrentData = data;
 
-  // Colour palette — cycle through 20 distinct colours
   const PALETTE = [
     '#6ee7b7','#60a5fa','#fbbf24','#f472b6','#a78bfa','#fb923c',
     '#34d399','#f87171','#67e8f9','#e879f9','#4ade80','#facc15',
@@ -1755,304 +1741,183 @@ function buildPieChart(all, total) {
     '#d8b4fe','#6366f1','#94a3b8',
   ];
 
-  const labels = data.map(([s]) => s.startsWith('Unknown') ? '📦 '+s.replace('Unknown · ','') : s);
-  const values = data.map(([,d]) => d.value);
-  const colors = data.map(([s,d], i) => {
-    if (s.startsWith('Unknown')) return 'rgba(148,163,184,0.35)';
-    const domV = d.sources.reduce((a,b)=>a.value>b.value?a:b).vehicle;
+  _pieColors = data.map(([s,d], i) => {
+    if (s.startsWith('Unknown')) return 'rgba(148,163,184,0.3)';
+    const domV = d.sources.reduce((a,b) => a.value > b.value ? a : b).vehicle;
     return VEHICLE_COLORS[domV] || PALETTE[i % PALETTE.length];
   });
-  const borderColors = colors.map(c => c.replace(/0\.\d+\)/, '0.8)').replace('#', '#'));
 
+  // Destroy existing chart
   if (pieChartInstance) { pieChartInstance.destroy(); pieChartInstance = null; }
 
   const canvas = document.getElementById('xray-pie');
-  // Size canvas based on container
-  const container = canvas.parentElement;
-  const size = Math.min(container.offsetWidth || 480, 520);
-  canvas.width = size; canvas.height = size;
+  if (!canvas) return;
+
+  // ── KEY FIX: let Chart.js handle sizing — no manual canvas dimension setting ──
+  // responsive:true + aspectRatio:1 gives a square that fills container width
+  // This keeps devicePixelRatio correct so click hit-detection works perfectly
 
   pieChartInstance = new Chart(canvas, {
     type: 'doughnut',
     data: {
-      labels,
+      labels: data.map(([s]) => s),
       datasets: [{
-        data: values,
-        backgroundColor: colors,
-        borderColor: 'rgba(14,15,17,0.8)',
+        data: data.map(([,d]) => d.value),
+        backgroundColor: _pieColors,
+        borderColor: '#0e0f11',
         borderWidth: 2,
         hoverBorderColor: '#ffffff',
-        hoverBorderWidth: 3,
-        hoverOffset: 8,
+        hoverBorderWidth: 2.5,
+        hoverOffset: 10,
       }]
     },
     options: {
-      responsive: false,
-      cutout: '52%',
+      responsive: true,
+      maintainAspectRatio: true,
+      aspectRatio: 1,
+      cutout: '54%',
+      animation: { duration: 400 },
       plugins: {
         legend: { display: false },
+        // ── KEY FIX: disable built-in tooltip — we handle hover ourselves ──
         tooltip: { enabled: false },
       },
-      onHover: (event, elements) => {
-        if (elements.length > 0) {
-          const i = elements[0].index;
-          const [stock, stockData] = data[i];
-          const pct = (values[i] / total * 100).toFixed(1);
-          document.getElementById('pie-center-val').textContent = ri(values[i]);
-          document.getElementById('pie-center-name').textContent =
-            stock.startsWith('Unknown') ? stock.replace('Unknown · ','') : stock;
-          document.getElementById('pie-center-pct').textContent = pct + '% of equity';
-          canvas.style.cursor = 'pointer';
-        } else {
-          document.getElementById('pie-center-val').textContent = ri(total);
-          document.getElementById('pie-center-name').textContent = 'Total equity mapped';
-          document.getElementById('pie-center-pct').textContent = data.length + ' holdings';
-          canvas.style.cursor = 'default';
-        }
-      },
+      // ── KEY FIX: onClick works correctly in Chart.js v4 at chart root level ──
       onClick: (event, elements) => {
         if (elements.length > 0) {
           const i = elements[0].index;
-          showPieDetail(data[i], total, colors[i]);
+          showPieDetail(i, _pieColors[i]);
         }
       },
-    }
+    },
+    // ── KEY FIX: use Chart.js plugin to handle mousemove (replaces removed onHover) ──
+    plugins: [{
+      id: 'hoverLabel',
+      afterEvent(chart, args) {
+        const e = args.event;
+        if (e.type !== 'mousemove' && e.type !== 'mouseout') return;
+        if (e.type === 'mouseout') {
+          resetPieCenter(data, total);
+          canvas.style.cursor = 'default';
+          return;
+        }
+        const pts = chart.getElementsAtEventForMode(e.native, 'nearest', { intersect: true }, false);
+        if (pts.length > 0) {
+          const i = pts[0].index;
+          const [stock] = data[i];
+          const val = data[i][1].value;
+          const pct = (val / total * 100).toFixed(1);
+          document.getElementById('pie-center-val').textContent   = ri(val);
+          document.getElementById('pie-center-name').textContent  = stock.startsWith('Unknown') ? stock.replace('Unknown · ','') + ' (other)' : stock;
+          document.getElementById('pie-center-pct').textContent   = pct + '% of equity';
+          canvas.style.cursor = 'pointer';
+        } else {
+          resetPieCenter(data, total);
+          canvas.style.cursor = 'default';
+        }
+      }
+    }]
   });
 
-  // Set default center text
-  document.getElementById('pie-center-val').textContent = ri(total);
-  document.getElementById('pie-center-name').textContent = 'Total equity mapped';
-  document.getElementById('pie-center-pct').textContent = data.length + ' holdings';
+  resetPieCenter(data, total);
+  buildPieLegend(data, total, _pieColors);
+}
 
-  // Build scrollable legend
-  const legendEl = document.getElementById('pie-legend-grid');
-  legendEl.innerHTML = data.map(([stock, stockData], i) => {
-    const pct = (stockData.value / total * 100).toFixed(1);
-    const isUnknown = stock.startsWith('Unknown');
-    const shortName = isUnknown ? stock.replace('Unknown · ','').replace('...',' other') : stock;
-    const overlap = !isUnknown && stockData.sources.length > 1;
-    return `<div onclick="showPieDetailByIdx(${i})" 
-      data-idx="${i}"
-      style="display:flex;align-items:center;gap:6px;padding:4px 6px;border-radius:5px;cursor:pointer;transition:.1s;"
-      onmouseenter="this.style.background='rgba(255,255,255,0.05)';highlightSlice(${i})"
-      onmouseleave="this.style.background='transparent';unhighlightSlice()">
-      <div style="width:10px;height:10px;border-radius:2px;flex-shrink:0;background:${colors[i]};"></div>
-      <span style="font-size:10px;color:${isUnknown?'var(--muted)':'var(--text)'};overflow:hidden;text-overflow:ellipsis;white-space:nowrap;flex:1;"
-            title="${shortName}">${shortName}</span>
-      ${overlap ? `<span style="font-size:9px;background:var(--warn-bg);color:var(--warn);padding:1px 4px;border-radius:3px;">${stockData.sources.length}×</span>` : ''}
-      <span style="font-size:10px;color:var(--muted);flex-shrink:0;">${pct}%</span>
-    </div>`;
-  }).join('');
+function resetPieCenter(data, total) {
+  document.getElementById('pie-center-val').textContent  = ri(total);
+  document.getElementById('pie-center-name').textContent = 'Total equity';
+  document.getElementById('pie-center-pct').textContent  = (data || _pieCurrentData).length + ' holdings';
 }
 
 function highlightSlice(idx) {
-  if (!pieChartInstance) return;
-  pieChartInstance.setDatasetVisibility(0, true);
-  // Trigger tooltip-like highlight
-  const meta = pieChartInstance.getDatasetMeta(0);
-  if (meta && meta.data[idx]) {
-    const d = pieChartInstance.data.datasets[0];
-    const val = d.data[idx];
-    const total = d.data.reduce((a,b)=>a+b,0);
-    document.getElementById('pie-center-val').textContent = ri(val);
-    document.getElementById('pie-center-name').textContent = pieChartInstance.data.labels[idx].replace('📦 ','');
-    document.getElementById('pie-center-pct').textContent = (val/total*100).toFixed(1)+'%';
-  }
+  const d = _pieCurrentData[idx];
+  if (!d || !pieTotalVal) return;
+  const [stock, stockData] = d;
+  const val = stockData.value;
+  const pct = (val / pieTotalVal * 100).toFixed(1);
+  document.getElementById('pie-center-val').textContent  = ri(val);
+  document.getElementById('pie-center-name').textContent = stock.startsWith('Unknown') ? stock.replace('Unknown · ','') : stock;
+  document.getElementById('pie-center-pct').textContent  = pct + '% of equity';
 }
 
 function unhighlightSlice() {
-  if (!pieChartInstance) return;
-  const d = pieChartInstance.data.datasets[0];
-  const total = d.data.reduce((a,b)=>a+b,0);
-  document.getElementById('pie-center-val').textContent = ri(total);
-  document.getElementById('pie-center-name').textContent = 'Total equity mapped';
-  document.getElementById('pie-center-pct').textContent = d.data.length+' holdings';
+  resetPieCenter(_pieCurrentData, pieTotalVal);
 }
 
-function showPieDetail(item, total, color) {
-  if (!item) return;
-  const [stock, data] = Array.isArray(item) ? item : [item[0], item[1]];
-  if (!data) return;
+function showPieDetail(idxOrItem, color) {
+  // Accepts either an index (from chart click) or direct [stock,data] (legacy)
+  let stock, stockData;
+  if (typeof idxOrItem === 'number') {
+    if (!_pieCurrentData[idxOrItem]) return;
+    [stock, stockData] = _pieCurrentData[idxOrItem];
+  } else {
+    [stock, stockData] = idxOrItem;
+  }
+  if (!stockData) return;
 
-  const panel = document.getElementById('pie-detail-content');
-  const header = document.getElementById('pie-detail-panel').previousElementSibling || 
-                 document.querySelector('#pie-detail-panel > div:first-child');
-
-  const pct  = (data.value / total * 100).toFixed(2);
+  const total   = pieTotalVal;
+  const pct     = (stockData.value / total * 100).toFixed(2);
   const isUnknown = stock.startsWith('Unknown');
-  const vCount = data.sources.length;
+  const vCount  = stockData.sources.length;
   const overlap = !isUnknown && vCount > 1;
+  const maxSrc  = Math.max(...stockData.sources.map(s => s.value));
 
-  // Vehicle breakdown bars
-  const maxSrc = Math.max(...data.sources.map(s => s.value));
-  const srcBars = data.sources.map(s => {
-    const sp = (s.value / data.value * 100).toFixed(1);
-    const vc = VEHICLE_COLORS[s.vehicle] || '#94a3b8';
-    return `<div style="margin-bottom:10px;">
-      <div style="display:flex;justify-content:space-between;margin-bottom:3px;">
-        <span style="font-size:11px;color:var(--text);font-weight:500;">${s.vehicle}</span>
-        <span style="font-size:11px;color:var(--muted);">${ri(s.value)} · ${sp}%</span>
-      </div>
-      <div style="height:8px;background:rgba(255,255,255,0.08);border-radius:4px;overflow:hidden;">
-        <div style="height:100%;width:${(s.value/maxSrc*100).toFixed(1)}%;background:${vc};border-radius:4px;"></div>
-      </div>
-    </div>`;
-  }).join('');
+  const srcBars = stockData.sources
+    .slice()
+    .sort((a,b) => b.value - a.value)
+    .map(s => {
+      const sp = (s.value / stockData.value * 100).toFixed(1);
+      const vc = VEHICLE_COLORS[s.vehicle] || '#94a3b8';
+      return `<div style="margin-bottom:11px;">
+        <div style="display:flex;justify-content:space-between;align-items:baseline;margin-bottom:4px;">
+          <span style="font-size:12px;color:var(--text);font-weight:500;">${s.vehicle}</span>
+          <span style="font-size:11px;color:var(--muted);">${ri(s.value)} &nbsp;·&nbsp; ${sp}%</span>
+        </div>
+        <div style="height:9px;background:rgba(255,255,255,0.08);border-radius:5px;overflow:hidden;">
+          <div style="height:100%;width:${(s.value/maxSrc*100).toFixed(1)}%;background:${vc};border-radius:5px;transition:width .3s;"></div>
+        </div>
+      </div>`;
+    }).join('');
 
-  panel.innerHTML = `
-    <div style="background:${color}18;border:1px solid ${color}44;border-radius:10px;padding:14px 16px;margin-bottom:14px;">
-      <div style="font-family:var(--fd);font-size:15px;font-weight:600;color:var(--text);margin-bottom:4px;">
-        ${isUnknown ? '📦 ' : ''}${stock.replace('Unknown · ','')}
-      </div>
-      <div style="font-size:22px;font-weight:700;color:${color};font-family:var(--fd);">${ri(data.value)}</div>
+  document.getElementById('pie-detail-content').innerHTML = `
+    <div style="background:${color}18;border:1.5px solid ${color}55;border-radius:10px;padding:14px 16px;margin-bottom:16px;">
+      <div style="font-family:var(--fd);font-size:14px;font-weight:600;color:var(--text);margin-bottom:6px;">${isUnknown?'📦 ':''} ${stock.replace('Unknown · ','')}</div>
+      <div style="font-family:var(--fd);font-size:24px;font-weight:700;color:${color};">${ri(stockData.value)}</div>
       <div style="font-size:11px;color:var(--muted);margin-top:3px;">${pct}% of mapped equity</div>
-      ${overlap ? `<div style="margin-top:8px;"><span style="font-size:11px;background:var(--warn-bg);color:var(--warn);padding:2px 8px;border-radius:4px;">${vCount}× overlap — appears in ${vCount} vehicles</span></div>` : ''}
+      ${overlap ? `<div style="margin-top:8px;display:inline-block;font-size:11px;background:var(--warn-bg);color:var(--warn);padding:3px 10px;border-radius:20px;font-weight:500;">${vCount}× overlap — in ${vCount} vehicles</div>` : ''}
     </div>
-    <div style="font-size:11px;color:var(--muted);margin-bottom:10px;font-weight:500;text-transform:uppercase;letter-spacing:.06em;">Exposure by vehicle</div>
+    <div style="font-size:10px;color:var(--muted);margin-bottom:10px;text-transform:uppercase;letter-spacing:.07em;">Exposure breakdown</div>
     ${srcBars}
-    ${isUnknown ? `<div style="font-size:11px;color:var(--muted2);margin-top:8px;">This bucket represents holdings not in the top-10 list of this fund.</div>` : ''}
+    ${isUnknown ? `<div style="font-size:11px;color:var(--muted2);margin-top:8px;">Represents holdings not in the tracked top-10 list for this fund.</div>` : ''}
   `;
+
+  // Highlight the heading
+  const heading = document.querySelector('#pie-detail-panel > div:first-child');
+  if (heading) heading.style.color = 'var(--text)';
 }
 
-function renderOverlap(overlapping) {
-  const wrap = document.getElementById('xray-overlap');
-  if (!overlapping.length) { wrap.innerHTML = '<div style="color:var(--muted);font-size:12px;">No overlapping holdings found.</div>'; return; }
-
-  // Sort by number of vehicles descending
-  const sorted = [...overlapping].sort((a,b) => b[1].sources.length - a[1].sources.length);
-
-  wrap.innerHTML = sorted.slice(0, 15).map(([stock, data]) => {
-    const total = data.value;
-    const vehicles = data.sources;
-    return `<div style="margin-bottom:14px;">
-      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:5px;">
-        <span style="font-size:13px;font-weight:500;">${stock}</span>
-        <span style="font-size:11px;color:var(--muted);">${ri(total)} total · <span style="color:var(--warn)">${vehicles.length} vehicles</span></span>
-      </div>
-      <div style="display:flex;gap:2px;height:18px;border-radius:4px;overflow:hidden;">
-        ${vehicles.map(s => {
-          const pct = s.value/total*100;
-          const color = VEHICLE_COLORS[s.vehicle]||'#94a3b8';
-          return `<div style="flex:${pct};background:${color};position:relative;" title="${s.vehicle}: ${ri(s.value)} (${pct.toFixed(1)}%)">
-            <div style="position:absolute;inset:0;display:flex;align-items:center;justify-content:center;">
-              <span style="font-size:8px;color:rgba(0,0,0,.7);white-space:nowrap;overflow:hidden;">${pct>8?s.vehicle.split(' ')[0]:''}</span>
-            </div>
-          </div>`;
-        }).join('')}
-      </div>
-      <div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:4px;">
-        ${vehicles.map(s=>`<span style="font-size:10px;color:var(--muted);">
-          <span style="display:inline-block;width:7px;height:7px;border-radius:2px;background:${VEHICLE_COLORS[s.vehicle]||'#94a3b8'};margin-right:3px;"></span>
-          ${s.vehicle.split(' ').slice(0,2).join(' ')}: ${ri(s.value)}
-        </span>`).join('')}
-      </div>
+function buildPieLegend(data, total, colors) {
+  const el = document.getElementById('pie-legend-grid');
+  if (!el) return;
+  el.innerHTML = data.map(([stock, d], i) => {
+    const pct = (d.value / total * 100).toFixed(1);
+    const isUnknown = stock.startsWith('Unknown');
+    const label = isUnknown ? stock.replace('Unknown · ','').replace('...',' …') : stock;
+    const overlap = !isUnknown && d.sources.length > 1;
+    return `<div
+      onclick="showPieDetail(${i},'${colors[i]}')"
+      onmouseenter="highlightSlice(${i})"
+      onmouseleave="unhighlightSlice()"
+      style="display:flex;align-items:center;gap:6px;padding:5px 7px;border-radius:6px;cursor:pointer;transition:background .12s;"
+      onmouseover="this.style.background='rgba(255,255,255,0.05)'"
+      onmouseout="this.style.background='transparent'">
+      <div style="width:10px;height:10px;border-radius:2px;flex-shrink:0;background:${colors[i]};"></div>
+      <span style="font-size:10px;color:${isUnknown?'var(--muted)':'var(--text)'};overflow:hidden;text-overflow:ellipsis;white-space:nowrap;flex:1;" title="${label}">${label}</span>
+      ${overlap ? `<span style="font-size:9px;background:var(--warn-bg);color:var(--warn);padding:1px 5px;border-radius:10px;flex-shrink:0;">${d.sources.length}×</span>` : ''}
+      <span style="font-size:10px;color:var(--muted);flex-shrink:0;min-width:30px;text-align:right;">${pct}%</span>
     </div>`;
-  }).join('<hr style="border:none;border-top:1px solid var(--border);margin:4px 0;">');
-}
-
-function renderVehicles() {
-  const vehicleList = [
-    { key:'direct', name:'Direct Holdings', color:'#6ee7b7' },
-    { key:'NIFTYBEES', fname:'Nifty 50 ETF' },
-    { key:'MID150BEES', fname:'Nifty Midcap 150 ETF' },
-    { key:'MIRAE_ELSS', fname:'Mirae Asset ELSS' },
-    { key:'AXIS_ELSS', fname:'Axis ELSS' },
-    { key:'EDELWEISS_MC', fname:'Edelweiss Mid Cap' },
-    { key:'PPFAS', fname:'Parag Parikh Flexi Cap' },
-    { key:'HDFC_FLEXI', fname:'HDFC Flexi Cap' },
-    { key:'NIPPON_SC', fname:'Nippon Small Cap' },
-  ];
-
-  const directTotal = Object.values({
-    'L&T':(gp('LARTOU.NS')||3838.80)*12,'Reliance Industries':(gp('RELIANCE.NS')||1390.20)*42,
-    'Bajaj Finance':(gp('BAJFINANCE.NS')||893.65)*141,'HDFC Bank':(gp('HDFCBANK.NS')||833.95)*109,
-    'ICICI Bank':(gp('ICICIBANK.NS')||1294.60)*14,'TCS':(gp('TCS.NS')||2464.90)*7,
-    'Dixon Technologies':(gp('DIXON.NS')||10618)*3,'BSE Ltd':(gp('BSE.NS')||2837.40)*14,
-    'KPIT Technologies':(gp('KPITTECH.NS')||683.90)*65,
-    'Affle (India)':(gp('AFFLE.NS')||1411.40)*38,
-    'Avenue Supermarts':(gp('DMART.NS')||3944.80)*10,
-    'Hindustan Unilever':(gp('HINDUNILVR.NS')||2161.40)*12,
-    'Kwa Wal':(gp('KWAWAL.NS')||26.59)*12,
-  }).reduce((a,b)=>a+b,0);
-
-  const mfVals = {
-    NIFTYBEES:(gp('NIFTYBEES.NS')||268.35)*380, MID150BEES:(gp('MID150BEES.NS')||20.03)*4143,
-    MIRAE_ELSS:141251, AXIS_ELSS:33448, INVESCO_SC:30054,
-    EDELWEISS_MC:132778, PPFAS:102816, HDFC_FLEXI:30067, NIPPON_SC:97652,
-  };
-
-  const rows = [
-    // Direct
-    { name:'Direct Holdings', items:[
-      {s:'Bajaj Finance',v:(gp('BAJFINANCE.NS')||893.65)*141},
-      {s:'HDFC Bank',v:(gp('HDFCBANK.NS')||833.95)*109},
-      {s:'Reliance Industries',v:(gp('RELIANCE.NS')||1390.20)*42},
-      {s:'L&T',v:(gp('LARTOU.NS')||3838.80)*12},
-      {s:'KPIT Technologies',v:(gp('KPITTECH.NS')||683.90)*65},
-      {s:'Affle (India)',v:(gp('AFFLE.NS')||1411.40)*38},
-      {s:'Others',v:directTotal-((gp('BAJFINANCE.NS')||893.65)*141+(gp('HDFCBANK.NS')||833.95)*109+(gp('RELIANCE.NS')||1390.20)*42+(gp('LARTOU.NS')||3838.80)*12+(gp('KPITTECH.NS')||683.90)*65+(gp('AFFLE.NS')||1411.40)*38)},
-    ], total:directTotal },
-  ];
-
-  // Add MF/ETF rows
-  Object.entries(FUND_COMP).forEach(([fkey, fund]) => {
-    const fval = mfVals[fkey] || 0;
-    if (!fval) return;
-    const items = fund.h.slice(0,6).map(([s,w])=>({s,v:fval*w}));
-    const knownW = fund.h.reduce((a,[,w])=>a+w,0);
-    items.push({s:'Unknown/Other',v:fval*(1-knownW)});
-    rows.push({name:fund.name, items, total:fval});
-  });
-
-  document.getElementById('xray-vehicles').innerHTML = rows.map(row => {
-    const max = row.items.reduce((a,b)=>Math.max(a,b.v),0);
-    return `<div style="margin-bottom:16px;">
-      <div style="font-size:12px;font-weight:500;color:var(--text);margin-bottom:7px;">${row.name} <span style="color:var(--muted);font-weight:400;">· ${ri(row.total)}</span></div>
-      ${row.items.filter(it=>it.v>0).map(it => {
-        const pct = it.v/row.total*100;
-        const isOther = it.s.includes('Other') || it.s.includes('Unknown');
-        return `<div style="display:flex;align-items:center;gap:8px;margin-bottom:4px;">
-          <div style="width:140px;font-size:11px;color:${isOther?'var(--muted)':'var(--text)'};overflow:hidden;text-overflow:ellipsis;white-space:nowrap;flex-shrink:0;">${it.s}</div>
-          <div style="flex:1;height:12px;background:var(--muted2);border-radius:2px;overflow:hidden;">
-            <div style="height:100%;width:${(it.v/max*100).toFixed(1)}%;background:${isOther?'rgba(148,163,184,0.3)':'#6ee7b7'};border-radius:2px;"></div>
-          </div>
-          <div style="width:65px;text-align:right;font-size:10px;color:var(--muted);font-variant-numeric:tabular-nums;">${ri(it.v)}</div>
-          <div style="width:36px;text-align:right;font-size:10px;color:var(--muted2);">${pct.toFixed(1)}%</div>
-        </div>`;
-      }).join('')}
-    </div>`;
-  }).join('<hr style="border:none;border-top:1px solid var(--border);margin:8px 0 16px;">');
-}
-
-function renderXRayTable(known, unknown, total) {
-  const allRows = [
-    ...known.map(([s,d],i) => ({rank:i+1, stock:s, data:d, isUnknown:false})),
-    ...unknown.map(([s,d],i) => ({rank:known.length+i+1, stock:s.replace('Unknown · ',''), data:d, isUnknown:true})),
-  ];
-
-  document.getElementById('xray-table').innerHTML = allRows.map(row => {
-    const {rank, stock, data, isUnknown} = row;
-    const overlap = !isUnknown && data.sources.length > 1;
-    const vehicles = [...new Set(data.sources.map(s=>s.vehicle))];
-    const srcHTML = data.sources.map(s =>
-      `<span style="font-size:10px;background:${(VEHICLE_COLORS[s.vehicle]||'#94a3b8')}22;color:${VEHICLE_COLORS[s.vehicle]||'#94a3b8'};padding:1px 6px;border-radius:3px;margin-right:3px;white-space:nowrap;">${s.vehicle.split(' ').slice(0,2).join(' ')}: ${ri(s.value)}</span>`
-    ).join('');
-
-    return `<tr style="${isUnknown?'opacity:.6':''}">
-      <td style="color:var(--muted);font-size:11px;">${rank}</td>
-      <td>
-        <div style="font-weight:500;${isUnknown?'font-style:italic;color:var(--muted)':''}">${stock}</div>
-        ${overlap?`<div style="font-size:10px;color:var(--warn);margin-top:1px;">${data.sources.length} vehicles · overlap</div>`:''}
-        ${isUnknown?`<div style="font-size:10px;color:var(--muted2);">Unknown/diversified bucket</div>`:''}
-      </td>
-      <td class="r"><strong>${ri(data.value)}</strong></td>
-      <td class="r">${(data.value/total*100).toFixed(2)}%</td>
-      <td class="r">${data.sources.length}</td>
-      <td style="padding:6px 10px;">${srcHTML}</td>
-    </tr>`;
   }).join('');
 }
-
 
 </script>
 </body>
