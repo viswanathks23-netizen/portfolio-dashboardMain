@@ -363,11 +363,38 @@ tbody tr:hover td{background:rgba(255,255,255,0.015);}
     <div id="xray-top20"></div>
   </div>
 
-  <!-- Bubble chart -->
+  <!-- Interactive pie chart -->
   <div class="acard" style="margin-bottom:16px;">
-    <div style="font-family:var(--fd);font-size:13px;font-weight:600;margin-bottom:4px;">Exposure bubble chart</div>
-    <div style="font-size:11px;color:var(--muted);margin-bottom:14px;">Bubble size = effective value · colour = number of vehicles holding it</div>
-    <div style="position:relative;height:320px;" id="xray-bubble-wrap"></div>
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:4px;flex-wrap:wrap;gap:8px;">
+      <div>
+        <div style="font-family:var(--fd);font-size:13px;font-weight:600;">Holdings composition — interactive pie</div>
+        <div style="font-size:11px;color:var(--muted);margin-top:2px;">Hover to explore · click to drill into a stock's vehicle breakdown</div>
+      </div>
+      <div style="display:flex;gap:5px;">
+        <button class="fbtn active" id="pie-mode-all" onclick="setPieMode('all',this)" style="font-size:11px;">All stocks</button>
+        <button class="fbtn" id="pie-mode-known" onclick="setPieMode('known',this)" style="font-size:11px;">Known only</button>
+      </div>
+    </div>
+    <!-- Main layout: pie left, detail panel right -->
+    <div style="display:grid;grid-template-columns:1fr 320px;gap:20px;align-items:start;" id="pie-layout">
+      <style>@media(max-width:700px){#pie-layout{grid-template-columns:1fr !important;}}</style>
+      <!-- Pie -->
+      <div style="position:relative;">
+        <canvas id="xray-pie" style="width:100%;max-height:520px;cursor:pointer;"></canvas>
+        <div id="pie-center-label" style="position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);text-align:center;pointer-events:none;">
+          <div style="font-family:var(--fd);font-size:22px;font-weight:700;color:var(--text);" id="pie-center-val">—</div>
+          <div style="font-size:11px;color:var(--muted);margin-top:2px;" id="pie-center-name">Hover a slice</div>
+          <div style="font-size:11px;color:var(--muted);" id="pie-center-pct"></div>
+        </div>
+      </div>
+      <!-- Detail panel -->
+      <div id="pie-detail-panel" style="padding-top:8px;">
+        <div style="font-family:var(--fd);font-size:13px;font-weight:600;margin-bottom:12px;color:var(--muted);">Click a slice to see breakdown</div>
+        <div id="pie-detail-content"></div>
+      </div>
+    </div>
+    <!-- Scrollable legend below -->
+    <div id="pie-legend-grid" style="display:grid;grid-template-columns:repeat(auto-fill,minmax(180px,1fr));gap:4px 12px;margin-top:16px;padding-top:14px;border-top:1px solid var(--border);max-height:200px;overflow-y:auto;"></div>
   </div>
 
   <!-- Overlap heatmap -->
@@ -1633,7 +1660,7 @@ function renderXRay() {
     `MF data as of Mar 2025 — update manually when funds rebalance significantly.`;
 
   renderTop20(xrayShowAll);
-  renderBubble(known.slice(0, 30), total);
+  buildPieChart(xrayData, total);
   renderOverlap(known.filter(([,d]) => d.sources.length > 1));
   renderVehicles(vehicles => vehicles);
   renderXRayTable(known, unknown, total);
@@ -1684,76 +1711,207 @@ function renderTop20(showAll) {
   </div>` : '');
 }
 
-function renderBubble(known, total) {
-  const wrap = document.getElementById('xray-bubble-wrap');
-  wrap.innerHTML = '';
-  const W = wrap.offsetWidth || 600;
-  const H = 320;
-  const svg = document.createElementNS('http://www.w3.org/2000/svg','svg');
-  svg.setAttribute('width',W); svg.setAttribute('height',H);
-  svg.style.width='100%'; svg.style.height='100%';
-  wrap.appendChild(svg);
+// ── INTERACTIVE PIE CHART ─────────────────────────────────────────────────
+let pieModeAll = true;
+let _pieCurrentData = []; // store reference for legend clicks
 
-  const top = known.slice(0,28);
-  const maxV = top[0]?.[1].value || 1;
-  const minR = 18, maxR = 58;
-
-  // Simple force-repel placement
-  const placed = [];
-  top.forEach(([stock, data], i) => {
-    const r = minR + (data.value/maxV)*(maxR-minR);
-    const overlap = data.sources.length > 1;
-    const domV = data.sources.reduce((a,b)=>a.value>b.value?a:b).vehicle;
-    const color = VEHICLE_COLORS[domV] || '#6ee7b7';
-    const pct = (data.value/total*100).toFixed(1);
-
-    // Position in a grid-ish layout with slight randomness
-    const cols = Math.ceil(Math.sqrt(top.length * W / H));
-    const col = i % cols;
-    const row = Math.floor(i / cols);
-    const cellW = W / cols;
-    const cellH = H / Math.ceil(top.length / cols);
-    let cx = cellW * col + cellW/2 + (Math.sin(i*1.7)*cellW*0.15);
-    let cy = cellH * row + cellH/2 + (Math.cos(i*2.3)*cellH*0.15);
-    cx = Math.max(r+4, Math.min(W-r-4, cx));
-    cy = Math.max(r+4, Math.min(H-r-4, cy));
-
-    const g = document.createElementNS('http://www.w3.org/2000/svg','g');
-    g.style.cursor = 'pointer';
-
-    const circle = document.createElementNS('http://www.w3.org/2000/svg','circle');
-    circle.setAttribute('cx',cx); circle.setAttribute('cy',cy); circle.setAttribute('r',r);
-    circle.setAttribute('fill', color+'33');
-    circle.setAttribute('stroke', color);
-    circle.setAttribute('stroke-width', overlap ? '2.5' : '1.5');
-    if (overlap) circle.setAttribute('stroke-dasharray','4,2');
-
-    const label = stock.length > 12 ? stock.substring(0,11)+'…' : stock;
-    const t1 = document.createElementNS('http://www.w3.org/2000/svg','text');
-    t1.setAttribute('x',cx); t1.setAttribute('y', r>=28?cy-4:cy);
-    t1.setAttribute('text-anchor','middle'); t1.setAttribute('fill','#f0f0ee');
-    t1.setAttribute('font-size', r>=35?'10':'9');
-    t1.setAttribute('font-family','DM Mono, monospace');
-    t1.textContent = label;
-
-    const t2 = document.createElementNS('http://www.w3.org/2000/svg','text');
-    t2.setAttribute('x',cx); t2.setAttribute('y', r>=28?cy+10:cy+11);
-    t2.setAttribute('text-anchor','middle'); t2.setAttribute('fill','#7a7a78');
-    t2.setAttribute('font-size','8');
-    t2.setAttribute('font-family','DM Mono, monospace');
-    t2.textContent = pct + '%';
-
-    g.appendChild(circle); g.appendChild(t1);
-    if (r >= 22) g.appendChild(t2);
-
-    // Tooltip on hover
-    const title = document.createElementNS('http://www.w3.org/2000/svg','title');
-    const srcLines = data.sources.map(s=>s.vehicle+': '+ri(s.value)).join(', ');
-    title.textContent = stock + ' — ' + ri(data.value) + ' (' + pct + '%) | ' + srcLines;
-    g.appendChild(title);
-
-    svg.appendChild(g);
+function showPieDetailByIdx(idx) {
+  if (!_pieCurrentData[idx]) return;
+  const [stock, data] = _pieCurrentData[idx];
+  const total = pieTotalVal;
+  const colors = _pieCurrentData.map(([s,d], i) => {
+    if (s.startsWith('Unknown')) return 'rgba(148,163,184,0.35)';
+    const domV = d.sources.reduce((a,b)=>a.value>b.value?a:b).vehicle;
+    return VEHICLE_COLORS[domV] || '#6ee7b7';
   });
+  showPieDetail([stock, data], total, colors[idx]);
+  // Scroll detail panel into view on mobile
+  const panel = document.getElementById('pie-detail-panel');
+  if (panel && window.innerWidth < 700) panel.scrollIntoView({behavior:'smooth'});
+}
+let pieChartInstance = null;
+let pieAllData = [];
+let pieTotalVal = 0;
+
+function setPieMode(mode, el) {
+  pieModeAll = mode === 'all';
+  document.querySelectorAll('#sec-xray .fbtn[id^="pie-mode"]').forEach(b => b.classList.remove('active'));
+  el.classList.add('active');
+  buildPieChart(pieAllData, pieTotalVal);
+}
+
+function buildPieChart(all, total) {
+  pieAllData = all; pieTotalVal = total;
+  const known = all.filter(([s]) => !s.startsWith('Unknown'));
+  const unknown = all.filter(([s]) => s.startsWith('Unknown'));
+  const data = pieModeAll ? [...known, ...unknown] : known;
+  _pieCurrentData = data; // store for legend clicks
+
+  // Colour palette — cycle through 20 distinct colours
+  const PALETTE = [
+    '#6ee7b7','#60a5fa','#fbbf24','#f472b6','#a78bfa','#fb923c',
+    '#34d399','#f87171','#67e8f9','#e879f9','#4ade80','#facc15',
+    '#38bdf8','#c084fc','#f9a8d4','#86efac','#fcd34d','#93c5fd',
+    '#d8b4fe','#6366f1','#94a3b8',
+  ];
+
+  const labels = data.map(([s]) => s.startsWith('Unknown') ? '📦 '+s.replace('Unknown · ','') : s);
+  const values = data.map(([,d]) => d.value);
+  const colors = data.map(([s,d], i) => {
+    if (s.startsWith('Unknown')) return 'rgba(148,163,184,0.35)';
+    const domV = d.sources.reduce((a,b)=>a.value>b.value?a:b).vehicle;
+    return VEHICLE_COLORS[domV] || PALETTE[i % PALETTE.length];
+  });
+  const borderColors = colors.map(c => c.replace(/0\.\d+\)/, '0.8)').replace('#', '#'));
+
+  if (pieChartInstance) { pieChartInstance.destroy(); pieChartInstance = null; }
+
+  const canvas = document.getElementById('xray-pie');
+  // Size canvas based on container
+  const container = canvas.parentElement;
+  const size = Math.min(container.offsetWidth || 480, 520);
+  canvas.width = size; canvas.height = size;
+
+  pieChartInstance = new Chart(canvas, {
+    type: 'doughnut',
+    data: {
+      labels,
+      datasets: [{
+        data: values,
+        backgroundColor: colors,
+        borderColor: 'rgba(14,15,17,0.8)',
+        borderWidth: 2,
+        hoverBorderColor: '#ffffff',
+        hoverBorderWidth: 3,
+        hoverOffset: 8,
+      }]
+    },
+    options: {
+      responsive: false,
+      cutout: '52%',
+      plugins: {
+        legend: { display: false },
+        tooltip: { enabled: false },
+      },
+      onHover: (event, elements) => {
+        if (elements.length > 0) {
+          const i = elements[0].index;
+          const [stock, stockData] = data[i];
+          const pct = (values[i] / total * 100).toFixed(1);
+          document.getElementById('pie-center-val').textContent = ri(values[i]);
+          document.getElementById('pie-center-name').textContent =
+            stock.startsWith('Unknown') ? stock.replace('Unknown · ','') : stock;
+          document.getElementById('pie-center-pct').textContent = pct + '% of equity';
+          canvas.style.cursor = 'pointer';
+        } else {
+          document.getElementById('pie-center-val').textContent = ri(total);
+          document.getElementById('pie-center-name').textContent = 'Total equity mapped';
+          document.getElementById('pie-center-pct').textContent = data.length + ' holdings';
+          canvas.style.cursor = 'default';
+        }
+      },
+      onClick: (event, elements) => {
+        if (elements.length > 0) {
+          const i = elements[0].index;
+          showPieDetail(data[i], total, colors[i]);
+        }
+      },
+    }
+  });
+
+  // Set default center text
+  document.getElementById('pie-center-val').textContent = ri(total);
+  document.getElementById('pie-center-name').textContent = 'Total equity mapped';
+  document.getElementById('pie-center-pct').textContent = data.length + ' holdings';
+
+  // Build scrollable legend
+  const legendEl = document.getElementById('pie-legend-grid');
+  legendEl.innerHTML = data.map(([stock, stockData], i) => {
+    const pct = (stockData.value / total * 100).toFixed(1);
+    const isUnknown = stock.startsWith('Unknown');
+    const shortName = isUnknown ? stock.replace('Unknown · ','').replace('...',' other') : stock;
+    const overlap = !isUnknown && stockData.sources.length > 1;
+    return `<div onclick="showPieDetailByIdx(${i})" 
+      data-idx="${i}"
+      style="display:flex;align-items:center;gap:6px;padding:4px 6px;border-radius:5px;cursor:pointer;transition:.1s;"
+      onmouseenter="this.style.background='rgba(255,255,255,0.05)';highlightSlice(${i})"
+      onmouseleave="this.style.background='transparent';unhighlightSlice()">
+      <div style="width:10px;height:10px;border-radius:2px;flex-shrink:0;background:${colors[i]};"></div>
+      <span style="font-size:10px;color:${isUnknown?'var(--muted)':'var(--text)'};overflow:hidden;text-overflow:ellipsis;white-space:nowrap;flex:1;"
+            title="${shortName}">${shortName}</span>
+      ${overlap ? `<span style="font-size:9px;background:var(--warn-bg);color:var(--warn);padding:1px 4px;border-radius:3px;">${stockData.sources.length}×</span>` : ''}
+      <span style="font-size:10px;color:var(--muted);flex-shrink:0;">${pct}%</span>
+    </div>`;
+  }).join('');
+}
+
+function highlightSlice(idx) {
+  if (!pieChartInstance) return;
+  pieChartInstance.setDatasetVisibility(0, true);
+  // Trigger tooltip-like highlight
+  const meta = pieChartInstance.getDatasetMeta(0);
+  if (meta && meta.data[idx]) {
+    const d = pieChartInstance.data.datasets[0];
+    const val = d.data[idx];
+    const total = d.data.reduce((a,b)=>a+b,0);
+    document.getElementById('pie-center-val').textContent = ri(val);
+    document.getElementById('pie-center-name').textContent = pieChartInstance.data.labels[idx].replace('📦 ','');
+    document.getElementById('pie-center-pct').textContent = (val/total*100).toFixed(1)+'%';
+  }
+}
+
+function unhighlightSlice() {
+  if (!pieChartInstance) return;
+  const d = pieChartInstance.data.datasets[0];
+  const total = d.data.reduce((a,b)=>a+b,0);
+  document.getElementById('pie-center-val').textContent = ri(total);
+  document.getElementById('pie-center-name').textContent = 'Total equity mapped';
+  document.getElementById('pie-center-pct').textContent = d.data.length+' holdings';
+}
+
+function showPieDetail(item, total, color) {
+  if (!item) return;
+  const [stock, data] = Array.isArray(item) ? item : [item[0], item[1]];
+  if (!data) return;
+
+  const panel = document.getElementById('pie-detail-content');
+  const header = document.getElementById('pie-detail-panel').previousElementSibling || 
+                 document.querySelector('#pie-detail-panel > div:first-child');
+
+  const pct  = (data.value / total * 100).toFixed(2);
+  const isUnknown = stock.startsWith('Unknown');
+  const vCount = data.sources.length;
+  const overlap = !isUnknown && vCount > 1;
+
+  // Vehicle breakdown bars
+  const maxSrc = Math.max(...data.sources.map(s => s.value));
+  const srcBars = data.sources.map(s => {
+    const sp = (s.value / data.value * 100).toFixed(1);
+    const vc = VEHICLE_COLORS[s.vehicle] || '#94a3b8';
+    return `<div style="margin-bottom:10px;">
+      <div style="display:flex;justify-content:space-between;margin-bottom:3px;">
+        <span style="font-size:11px;color:var(--text);font-weight:500;">${s.vehicle}</span>
+        <span style="font-size:11px;color:var(--muted);">${ri(s.value)} · ${sp}%</span>
+      </div>
+      <div style="height:8px;background:rgba(255,255,255,0.08);border-radius:4px;overflow:hidden;">
+        <div style="height:100%;width:${(s.value/maxSrc*100).toFixed(1)}%;background:${vc};border-radius:4px;"></div>
+      </div>
+    </div>`;
+  }).join('');
+
+  panel.innerHTML = `
+    <div style="background:${color}18;border:1px solid ${color}44;border-radius:10px;padding:14px 16px;margin-bottom:14px;">
+      <div style="font-family:var(--fd);font-size:15px;font-weight:600;color:var(--text);margin-bottom:4px;">
+        ${isUnknown ? '📦 ' : ''}${stock.replace('Unknown · ','')}
+      </div>
+      <div style="font-size:22px;font-weight:700;color:${color};font-family:var(--fd);">${ri(data.value)}</div>
+      <div style="font-size:11px;color:var(--muted);margin-top:3px;">${pct}% of mapped equity</div>
+      ${overlap ? `<div style="margin-top:8px;"><span style="font-size:11px;background:var(--warn-bg);color:var(--warn);padding:2px 8px;border-radius:4px;">${vCount}× overlap — appears in ${vCount} vehicles</span></div>` : ''}
+    </div>
+    <div style="font-size:11px;color:var(--muted);margin-bottom:10px;font-weight:500;text-transform:uppercase;letter-spacing:.06em;">Exposure by vehicle</div>
+    ${srcBars}
+    ${isUnknown ? `<div style="font-size:11px;color:var(--muted2);margin-top:8px;">This bucket represents holdings not in the top-10 list of this fund.</div>` : ''}
+  `;
 }
 
 function renderOverlap(overlapping) {
