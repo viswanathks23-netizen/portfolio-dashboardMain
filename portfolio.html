@@ -100,8 +100,8 @@ body{background:var(--bg);color:var(--text);font-family:var(--fm);font-size:13px
 .acard-title{font-size:10px;color:var(--muted);text-transform:uppercase;letter-spacing:.07em;margin-bottom:11px;}
 .bar-row{display:flex;align-items:center;gap:8px;margin-bottom:9px;}
 .bar-lbl{font-size:11px;color:var(--muted);width:130px;flex-shrink:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
-.bar-bg{flex:1;height:8px;background:rgba(255,255,255,0.08);border-radius:4px;overflow:hidden;min-width:40px;}
-.bar-fill{height:100%;border-radius:4px;transition:width .5s ease;}
+.bar-bg{flex:1;height:10px;background:rgba(255,255,255,0.1);border-radius:5px;overflow:hidden;min-width:60px;}
+.bar-fill{height:100%;border-radius:5px;transition:width .6s ease;opacity:0.9;}
 .bar-pct{font-size:11px;color:var(--text);font-weight:500;width:36px;text-align:right;}
 .bar-inr{font-size:10px;color:var(--muted);width:72px;text-align:right;}
 .stat-row{display:flex;justify-content:space-between;padding:6px 0;border-bottom:1px solid var(--border);font-size:12px;}
@@ -276,7 +276,6 @@ tbody tr:hover td{background:rgba(255,255,255,0.015);}
     <div class="an-section-title">Pure equity view <span class="an-section-sub">ex-PEE · ex-Govt · ex-Startup</span></div>
     <div class="ag">
       <div class="acard"><div class="acard-title">Equity breakdown</div><div id="ch-equity-breakdown"></div></div>
-      <div class="acard"><div class="acard-title">India vs international</div><div id="ch-equity-geography"></div></div>
     </div>
   </div>
   <div class="an-section">
@@ -505,9 +504,9 @@ tbody tr:hover td{background:rgba(255,255,255,0.015);}
     <div class="tbl-hdr"><div class="tbl-title">All tracked entries</div><div class="tbl-meta" id="tbl-meta"></div></div>
     <table><thead><tr>
       <th>Date</th><th class="r">Net Worth</th><th class="r">Change</th>
-      <th class="r">Coin MF</th><th class="r">ELSS</th><th class="r">ICICI</th>
-      <th class="r">Wesop</th><th class="r">Zerodha</th><th class="r">US</th>
-      <th class="r">Teatings</th><th class="r">Cash</th><th class="r">EPF</th><th class="r">CC Dues</th><th class="r">VIX</th>
+      <th class="r">ELSS</th><th class="r">ICICI</th><th class="r">Wesop INR</th>
+      <th class="r">Zerodha</th><th class="r">MF (Coin)</th><th class="r">Cash</th>
+      <th class="r">EPF</th><th class="r">CC Dues</th>
     </tr></thead><tbody id="recent-body"></tbody></table>
   </div>
 
@@ -526,7 +525,14 @@ function showPage(name, el) {
   document.querySelectorAll('.page-tab').forEach(t => t.classList.remove('active'));
   document.getElementById('page-' + name).classList.add('active');
   el.classList.add('active');
-  if (name === 'history' && !historyLoaded) loadHistory();
+  if (name === 'history') {
+    if (!historyLoaded) {
+      loadHistory();
+    } else if (allData.length) {
+      // Re-render charts - they need visible canvas to size correctly
+      setTimeout(() => { renderHCharts(); renderAssetChart(); }, 50);
+    }
+  }
 }
 
 function setProgress(pct, msg) {
@@ -810,15 +816,65 @@ function renderAll() {
   brs('ch-country',[{l:'India',v:sVal+T.etfs.val+T.mfs.val+T.metals.inv*0.7+T.govt.val,c:'#6ee7b7'},{l:'France',v:T.peeINR.val,c:'#fb923c'},{l:'USA',v:T.usINR.val+T.metals.val*0.3,c:'#60a5fa'},{l:'India (Startup)',v:T.startup.val,c:'#a78bfa'}],T.total.val);
   const eq=T.equity.val;
   brs('ch-equity-breakdown',[{l:'Indian stocks',v:sVal,c:'#6ee7b7'},{l:'ETF & MF',v:T.etfs.val+T.mfs.val,c:'#60a5fa'},{l:'Metals',v:T.metals.val,c:'#fbbf24'},{l:'USA',v:T.usINR.val,c:'#f472b6'}],eq);
-  brs('ch-equity-geography',[{l:'India stocks+ETF+MF',v:sVal+T.etfs.val+T.mfs.val,c:'#6ee7b7'},{l:'Metals',v:T.metals.val,c:'#fbbf24'},{l:'USA',v:T.usINR.val,c:'#f472b6'}],eq);
+  // India vs international removed
   const all=[...ICICI_STOCKS,...ZD_STOCKS];
   const lcv=all.filter(h=>h.cap==='large').reduce((s,h)=>s+h.qty*(gp(h.sym)||h.avg),0);
   const mcv=all.filter(h=>h.cap==='mid').reduce((s,h)=>s+h.qty*(gp(h.sym)||h.avg),0);
   const scv=all.filter(h=>h.cap==='small').reduce((s,h)=>s+h.qty*(gp(h.sym)||h.avg),0);
-  brs('ch-cap',[{l:'Large cap',v:lcv,c:'#6ee7b7'},{l:'Mid cap',v:mcv,c:'#60a5fa'},{l:'Small cap',v:scv,c:'#a78bfa'}],lcv+mcv+scv);
-  const secs={};all.forEach(h=>{const v=h.qty*(gp(h.sym)||h.avg);secs[h.sector]=(secs[h.sector]||0)+v;});
-  const scols=['#6ee7b7','#60a5fa','#a78bfa','#fbbf24','#f472b6','#fb923c','#34d399','#94a3b8'];
-  brs('ch-sector',Object.entries(secs).map(([l,v],i)=>({l,v,c:scols[i%scols.length]})),Object.values(secs).reduce((a,b)=>a+b,0));
+  // Add ETF exposure: NIFTYBEES≈large, MID150BEES≈mid
+  const etfLarge = (gp('NIFTYBEES.NS')||268.35)*380;
+  const etfMid   = (gp('MID150BEES.NS')||21.28)*4143;
+  // Add MF cap exposure: ELSS≈large, Flexi≈mixed(60L/40M), Mid cap MFs≈mid, Small cap MFs≈small
+  const mfVal = (inv,nav,avg) => inv*(nav/avg);
+  const mfLarge = mfVal(70997,53.437,26.8591) + mfVal(14000,102.9776,43.1017) // ELSS (mostly large)
+                + mfVal(104994.77,90.4288,92.34)*0.6 + mfVal(30098.56,2135.47,2137.68)*0.6; // Flexi 60% large
+  const mfMid   = mfVal(134993.11,115.83,117.76) // Edelweiss mid
+                + mfVal(104994.77,90.4288,92.34)*0.4 + mfVal(30098.56,2135.47,2137.68)*0.4; // Flexi 40% mid
+  const mfSmall = mfVal(29998.50,43.56,43.48) + mfVal(102994.85,176.185,185.82); // Invesco SC + Nippon SC
+  const capTotal = lcv+mcv+scv+etfLarge+etfMid+mfLarge+mfMid+mfSmall;
+  brs('ch-cap',[
+    {l:'Large cap (direct)',  v:lcv,      c:'#6ee7b7'},
+    {l:'Large cap (ETF+MF)', v:etfLarge+mfLarge, c:'#34d399'},
+    {l:'Mid cap (direct)',    v:mcv,      c:'#60a5fa'},
+    {l:'Mid cap (ETF+MF)',   v:etfMid+mfMid,  c:'#93c5fd'},
+    {l:'Small cap (direct)', v:scv,      c:'#a78bfa'},
+    {l:'Small cap (MF)',     v:mfSmall,  c:'#c4b5fd'},
+  ], capTotal);
+  // Sector across ALL holdings: direct stocks + ETF exposure + MF sectors + US + Teatings
+  const secs={};
+  // Direct stocks
+  all.forEach(h=>{const v=h.qty*(gp(h.sym)||h.avg);secs[h.sector]=(secs[h.sector]||0)+v;});
+  // ETF - Nifty 50 is broad market (approx sector weights)
+  const n50v=(gp('NIFTYBEES.NS')||268.35)*380;
+  secs['BFSI']=(secs['BFSI']||0)+n50v*0.37;   // Banks dominate Nifty
+  secs['IT']=(secs['IT']||0)+n50v*0.15;
+  secs['Energy']=(secs['Energy']||0)+n50v*0.12;
+  secs['FMCG']=(secs['FMCG']||0)+n50v*0.09;
+  secs['Infra']=(secs['Infra']||0)+n50v*0.08;
+  secs['Other']=(secs['Other']||0)+n50v*0.19;
+  // Midcap ETF
+  const mcetfv=(gp('MID150BEES.NS')||21.28)*4143;
+  secs['IT']=(secs['IT']||0)+mcetfv*0.18;
+  secs['Infra']=(secs['Infra']||0)+mcetfv*0.15;
+  secs['BFSI']=(secs['BFSI']||0)+mcetfv*0.12;
+  secs['Other']=(secs['Other']||0)+mcetfv*0.55;
+  // MFs - all are diversified equity, classify as broad
+  const mftotal=T.mfs.val;
+  secs['BFSI']=(secs['BFSI']||0)+mftotal*0.28;   // MFs heavily BFSI
+  secs['IT']=(secs['IT']||0)+mftotal*0.12;
+  secs['Energy']=(secs['Energy']||0)+mftotal*0.08;
+  secs['FMCG']=(secs['FMCG']||0)+mftotal*0.07;
+  secs['Healthcare']=(secs['Healthcare']||0)+mftotal*0.07;
+  secs['Other']=(secs['Other']||0)+mftotal*0.38;
+  // US stocks
+  const usTotal=T.usINR.val;
+  secs['Tech (US)']=(secs['Tech (US)']||0)+usTotal*0.70;  // META,NVDA,GOOGL,MSFT,AMZN
+  secs['Energy/Metals (US)']=(secs['Energy/Metals (US)']||0)+usTotal*0.30; // URA,COPX in metals now
+  // Teatings - restaurant/F&B
+  secs['F&B / Restaurant']=(secs['F&B / Restaurant']||0)+T.startup.val;
+  const scols=['#6ee7b7','#60a5fa','#a78bfa','#fbbf24','#f472b6','#fb923c','#34d399','#94a3b8','#f9a8d4','#6366f1'];
+  const secTotal=Object.values(secs).reduce((a,b)=>a+b,0);
+  brs('ch-sector',Object.entries(secs).sort((a,b)=>b[1]-a[1]).map(([l,v],i)=>({l,v,c:scols[i%scols.length]})),secTotal);
   const wins=[...ICICI_STOCKS,...ZD_STOCKS,...ETFS,...METALS].filter(h=>{const p=gp(h.sym);return p&&p>h.avg;}).length;
   const loss=[...ICICI_STOCKS,...ZD_STOCKS,...ETFS,...METALS].filter(h=>{const p=gp(h.sym);return p&&p<h.avg;}).length;
   document.getElementById('ch-stats').innerHTML=[{l:'Total net worth',v:`<span style="color:var(--accent)">${ri(T.total.val)}</span>`},{l:'Ex-PEE net worth',v:ri(T.exPee.val)},{l:'Pure equity',v:ri(T.equity.val)},{l:'Total invested',v:ri(T.total.inv)},{l:'Overall return',v:`<span style="color:${cc(ret)}">${rp(ret)}</span>`},{l:'Winning positions',v:`${wins}`},{l:'Losing positions',v:`${loss}`},{l:'USD/INR',v:`₹${FX.usd}`},{l:'EUR/INR',v:`₹${FX.eur}`},{l:'PEE',v:re(T.peeEUR)+' = '+ri(T.peeINR.val)},{l:'US portfolio',v:rd(T.usRaw.val)+' = '+ri(T.usINR.val)}].map(s=>`<div class="stat-row"><span class="sl">${s.l}</span><span class="sv">${s.v}</span></div>`).join('');
@@ -832,13 +888,17 @@ function drawPie(data,total) {
 }
 
 function showTab(n,el) {
-  // Only affect .sec and .ntab inside the currently active page
-  const activePage = document.querySelector('.page.active') || document;
-  activePage.querySelectorAll('.sec').forEach(s=>s.classList.remove('active'));
-  activePage.querySelectorAll('.ntab').forEach(t=>t.classList.remove('active'));
+  // Scope to portfolio page only (history page has no .sec tabs)
+  const portfolioPage = document.getElementById('page-portfolio');
+  if (portfolioPage) {
+    portfolioPage.querySelectorAll('.sec').forEach(s=>s.classList.remove('active'));
+    portfolioPage.querySelectorAll('.ntab').forEach(t=>t.classList.remove('active'));
+  }
   const target = document.getElementById('sec-'+n);
   if (target) target.classList.add('active');
   if (el) el.classList.add('active');
+  // X-Ray special render
+  if (n === 'xray') { setTimeout(renderXRay, 50); }
 }
 
 const PXIES=[u=>`https://api.allorigins.win/raw?url=${encodeURIComponent(u)}`,u=>`https://corsproxy.io/?${encodeURIComponent(u)}`];
@@ -1371,7 +1431,19 @@ function renderRecentTable() {
   document.getElementById('recent-body').innerHTML=recent.map((r,i)=>{
     const prev2=allData[allData.length-1-i-1];
     const chg=prev2?((r.nw-prev2.nw)/prev2.nw*100):null;
-    return `<tr><td>${fmtD(r.date)}</td><td class="r"><strong>${ri(r.nw)}</strong></td><td class="r">${chg!=null?pill(chg):'—'}</td><td class="r">${r.coinMF>0?ri(r.coinMF):'—'}</td><td class="r">${ri(r.elss)}</td><td class="r">${ri(r.icici)}</td><td class="r">${ri(r.wesop)}</td><td class="r">${ri(r.zd)}</td><td class="r">${r.us>0?ri(r.us):'—'}</td><td class="r">${r.other>0?ri(r.other):'—'}</td><td class="r">${ri(r.cash)}</td><td class="r">${r.epf>0?ri(r.epf):'—'}</td><td class="r" style="color:${r.cc>50000?'var(--neg)':'var(--muted)'}">${r.cc>0?ri(r.cc):'—'}</td><td class="r" style="color:var(--muted)">${r.vix>0?r.vix.toFixed(1):'—'}</td></tr>`;
+    return `<tr>
+      <td>${fmtD(r.date)}</td>
+      <td class="r"><strong>${ri(r.nw)}</strong></td>
+      <td class="r">${chg!=null?pill(chg):'—'}</td>
+      <td class="r">${r.elss>0?ri(r.elss):'—'}</td>
+      <td class="r">${r.icici>0?ri(r.icici):'—'}</td>
+      <td class="r">${r.wesop>0?ri(r.wesop):'—'}</td>
+      <td class="r">${r.zd>0?ri(r.zd):'—'}</td>
+      <td class="r">${r.coinMF>0?ri(r.coinMF):'—'}</td>
+      <td class="r">${r.cash>0?ri(r.cash):'—'}</td>
+      <td class="r">${r.epf>0?ri(r.epf):'—'}</td>
+      <td class="r" style="color:${r.cc>50000?'var(--neg)':'var(--muted)'}">${r.cc>0?ri(r.cc):'—'}</td>
+    </tr>`;
   }).join('');
 }
 
@@ -1820,12 +1892,6 @@ function renderXRayTable(known, unknown, total) {
   }).join('');
 }
 
-// Called when tab is opened
-const _origShowTab = showTab;
-function showTab(n, el) {
-  _origShowTab(n, el);
-  if (n === 'xray') renderXRay();
-}
 
 </script>
 </body>
