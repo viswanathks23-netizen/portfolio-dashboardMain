@@ -1576,154 +1576,198 @@ const FUND_COMP = {
 
 // Vehicle color map
 const VEHICLE_COLORS = {
-  'Direct — India':         '#6ee7b7',
-  'Direct':                 '#6ee7b7',  // fallback
+  // India direct
+  'India Direct — ICICI':   '#6ee7b7',
+  'India Direct — Zerodha': '#4ade80',
+  // Indian ETFs
   'Nifty 50 ETF':           '#60a5fa',
-  'Nifty Midcap 150 ETF':   '#a78bfa',
-  'Mirae Asset ELSS':       '#fbbf24',
+  'Midcap 150 ETF':         '#a78bfa',
+  // Indian MFs
+  'Mirae ELSS':             '#fbbf24',
   'Axis ELSS':              '#f472b6',
   'Invesco Smallcap':       '#fb923c',
   'Edelweiss Mid Cap':      '#34d399',
-  'Parag Parikh Flexi Cap': '#e879f9',
+  'PPFAS Flexi Cap':        '#e879f9',
   'HDFC Flexi Cap':         '#67e8f9',
   'Nippon Small Cap':       '#f87171',
-  'USA Stocks (Vested)':     '#38bdf8',
-  'QQQ (Nasdaq 100 ETF)':   '#7dd3fc',
-  'Gold ETF':                '#fcd34d',
-  'Sovereign Gold Bond':     '#f59e0b',
-  'Silver ETF':              '#e2e8f0',
+  // USA
+  'USA — Vested (direct)':  '#38bdf8',
+  'USA — QQQ Nasdaq-100 ETF':'#7dd3fc',
+  // Metals
+  'Gold — GOLDBEES ETF':    '#fcd34d',
+  'Gold — Sovereign Gold Bond':'#f59e0b',
+  'Silver — SILVERBEES ETF':'#e2e8f0',
   'Uranium ETF (URA)':      '#a3e635',
-  'Copper ETF (COPX)':      '#fb923c',
-  'Metals':                 '#fcd34d',  // fallback
+  'Copper Miners ETF (COPX)':'#fb923c',
 };
 
 function computeXRay() {
-  const T = calc();
-  // Get current market values per vehicle
-  const vehicles = {
-    NIFTYBEES:   (gp('NIFTYBEES.NS')||268.35) * 380,
-    MID150BEES:  (gp('MID150BEES.NS')||20.03) * 4143,
-    MIRAE_ELSS:  141251,  // NAV-based, use stored value
-    AXIS_ELSS:   33448,
-    INVESCO_SC:  30054,
-    EDELWEISS_MC:132778,
-    PPFAS:       102816,
-    HDFC_FLEXI:  30067,
-    NIPPON_SC:   97652,
-  };
-
-  const direct = {
-    'L&T':                   (gp('LARTOU.NS')||3838.80)*12,
-    'Reliance Industries':   (gp('RELIANCE.NS')||1390.20)*42,
-    'Bajaj Finance':         (gp('BAJFINANCE.NS')||893.65)*141,
-    'Affle (India)': (gp('AFFLE.NS')||1411.40)*38,
-    'Avenue Supermarts':     (gp('DMART.NS')||3944.80)*10,
-    'Dixon Technologies':    (gp('DIXON.NS')||10618)*3,
-    'HDFC Bank':             (gp('HDFCBANK.NS')||833.95)*109,
-    'ICICI Bank':            (gp('ICICIBANK.NS')||1294.60)*14,
-    'Hindustan Unilever':    (gp('HINDUNILVR.NS')||2161.40)*12,
-    'TCS':                   (gp('TCS.NS')||2464.90)*7,
-    'Kwa Wal':               (gp('KWAWAL.NS')||26.59)*12,
-    'BSE Ltd':               (gp('BSE.NS')||2837.40)*14,
-    'KPIT Technologies':     (gp('KPITTECH.NS')||683.90)*65,
-  };
-
-  // Build effective exposure map
+  const usd = FX.usd || 92.50;
   const eff = {};
-
-  function addExposure(stock, val, vehicle) {
-    if (!eff[stock]) eff[stock] = { value:0, sources:[] };
+  function add(stock, val, vehicle) {
+    if (!val || val <= 0) return;
+    if (!eff[stock]) eff[stock] = { value: 0, sources: [] };
     eff[stock].value += val;
-    eff[stock].sources.push({ vehicle, value:val });
+    eff[stock].sources.push({ vehicle, value: val });
   }
 
-  // Direct Indian equity holdings
-  Object.entries(direct).forEach(([s,v]) => addExposure(s, v, 'Direct — India'));
+  // ── 1. INDIA DIRECT (exact quantities × live prices) ─────────────────────
+  add('Bajaj Finance',      (gp('BAJFINANCE.NS')||893.65)*141,   'India Direct — ICICI');
+  add('HDFC Bank',          (gp('HDFCBANK.NS')||833.95)*109,     'India Direct — ICICI');
+  add('Reliance Industries',(gp('RELIANCE.NS')||1390.20)*42,     'India Direct — ICICI');
+  add('Affle (India)',      (gp('AFFLE.NS')||1411.40)*38,        'India Direct — ICICI');
+  add('L&T',               (gp('LARTOU.NS')||3838.80)*12,       'India Direct — ICICI');
+  add('Avenue Supermarts', (gp('DMART.NS')||3944.80)*10,        'India Direct — ICICI');
+  add('Dixon Technologies',(gp('DIXON.NS')||10618)*3,           'India Direct — ICICI');
+  add('Hindustan Unilever',(gp('HINDUNILVR.NS')||2161.40)*12,   'India Direct — ICICI');
+  add('TCS',               (gp('TCS.NS')||2464.90)*7,           'India Direct — ICICI');
+  add('Kwa Wal',           (gp('KWAWAL.NS')||26.59)*12,         'India Direct — ICICI');
+  add('ICICI Bank',        (gp('ICICIBANK.NS')||1294.60)*14,    'India Direct — ICICI');
+  add('BSE Ltd',           (gp('BSE.NS')||2837.40)*14,          'India Direct — Zerodha');
+  add('KPIT Technologies', (gp('KPITTECH.NS')||683.90)*65,      'India Direct — Zerodha');
 
-  // ETF + MF passthroughs
-  Object.entries(FUND_COMP).forEach(([fkey, fund]) => {
-    const fval = vehicles[fkey] || 0;
-    if (!fval) return;
-    let knownW = 0;
-    fund.h.forEach(([stock, w]) => {
-      addExposure(stock, fval * w, fund.name);
-      knownW += w;
-    });
-    const unknownVal = fval * (1 - knownW);
-    addExposure('Unknown · ' + fund.name, unknownVal, fund.name);
-  });
+  // ── 2. NIFTY 50 ETF (380 units, top-20 passthrough covers ~78%) ──────────
+  const nf = (gp('NIFTYBEES.NS')||270.56)*380;
+  [['HDFC Bank',0.1317],['Reliance Industries',0.0942],['ICICI Bank',0.0793],
+   ['Infosys',0.0596],['TCS',0.0440],['Bharti Airtel',0.0382],
+   ['Kotak Mahindra Bank',0.0345],['L&T',0.0318],['Axis Bank',0.0277],
+   ['Sun Pharma',0.0264],['Hindustan Unilever',0.0244],['ITC',0.0228],
+   ['Bajaj Finance',0.0210],['Asian Paints',0.0185],['Titan Company',0.0183],
+   ['Maruti Suzuki',0.0181],['NTPC',0.0168],['Power Grid',0.0159],
+   ['HCL Technologies',0.0158],['Wipro',0.0138],
+  ].forEach(([s,w])=>add(s,nf*w,'Nifty 50 ETF'));
+  add('Unknown — Nifty 50 (30 other stocks)',nf*(1-0.753),'Nifty 50 ETF');
 
-  const usdInr = FX.usd || 92.50;
+  // ── 3. MIDCAP 150 ETF (4143 units, top-19 passthrough covers ~32%) ───────
+  const mc = (gp('MID150BEES.NS')||21.28)*4143;
+  [['Bharat Electronics',0.0196],['Indian Hotels',0.0194],['Dixon Technologies',0.0192],
+   ['Solar Industries',0.0185],['Persistent Systems',0.0182],['Coforge',0.0178],
+   ['Tube Investments',0.0168],['Cummins India',0.0159],['BSE Ltd',0.0146],
+   ['KPIT Technologies',0.0143],['Trent',0.0139],['Varun Beverages',0.0136],
+   ['Max Healthcare',0.0148],['Supreme Industries',0.0162],['Astral Poly',0.0153],
+   ['PI Industries',0.0149],['Mphasis',0.0174],['Voltas',0.0156],
+   ['Kalpataru Projects',0.0133],
+  ].forEach(([s,w])=>add(s,mc*w,'Midcap 150 ETF'));
+  add('Unknown — Midcap 150 (131 other stocks)',mc*(1-0.32),'Midcap 150 ETF');
 
-  // ── USA direct stocks via Vested ─────────────────────────────────────────
-  // Note: GOOGL/META/MSFT also appear in PPFAS; QQQ overlaps NVDA/AMZN/GOOGL/META/MSFT
-  const vestedDirect = [
-    { sym:'META',  name:'Meta Platforms (US)',  qty:0.39139841, avg:638.12 },
-    { sym:'NVDA',  name:'NVIDIA (US)',           qty:1.11278727, avg:179.73 },
-    { sym:'AMZN',  name:'Amazon (US)',           qty:1.62147801, avg:217.09 },
-    { sym:'GOOGL', name:'Alphabet (US)',         qty:1.11771584, avg:312.92 },
-    { sym:'MSFT',  name:'Microsoft (US)',        qty:0.84416169, avg:414.61 },
-  ];
-  vestedDirect.forEach(h => {
-    const priceUsd = gp(h.sym) || h.avg;
-    const valInr   = h.qty * priceUsd * usdInr;
-    const dispUsd  = '$' + priceUsd.toFixed(0);
-    const dispInr  = '₹' + Math.round(priceUsd * usdInr).toLocaleString('en-IN');
-    addExposure(h.name + ' (' + dispUsd + ' / ' + dispInr + ')', valInr, 'USA Stocks (Vested)');
-  });
+  // ── 4. MUTUAL FUNDS ───────────────────────────────────────────────────────
+  // Mirae ELSS (Groww): inv ₹70,997 · currNav/avgNav = 53.437/26.8591
+  const mirae = 70997*(53.437/26.8591);
+  [['HDFC Bank',0.0812],['ICICI Bank',0.0731],['Infosys',0.0598],
+   ['Reliance Industries',0.0543],['Axis Bank',0.0432],['L&T',0.0398],
+   ['TCS',0.0376],['Kotak Mahindra Bank',0.0354],['Bharti Airtel',0.0321],['Sun Pharma',0.0287],
+  ].forEach(([s,w])=>add(s,mirae*w,'Mirae ELSS'));
+  add('Unknown — Mirae ELSS',mirae*0.48,'Mirae ELSS');
 
-  // ── QQQ = Nasdaq 100 ETF (passthrough — overlaps with above direct stocks) ──
-  const qqqPriceUsd = gp('QQQ') || 608.24;
-  const qqqValInr   = 0.32882007 * qqqPriceUsd * usdInr;
-  // Top 10 Nasdaq 100 holdings (covers ~51% of QQQ)
-  // QQQ holdings — names MUST match Vested labels exactly for overlap detection
-  const qqqHoldings = [
-    ['Apple (US)',              0.0895],  // not in Vested direct
-    ['NVIDIA (US)',             0.0820],  // matches Vested 'NVIDIA (US)' → shows overlap
-    ['Microsoft (US)',          0.0780],  // matches Vested + PPFAS 'Microsoft (US)' → overlap
-    ['Amazon (US)',             0.0590],  // matches Vested 'Amazon (US)' → overlap
-    ['Meta Platforms (US)',     0.0480],  // matches Vested + PPFAS 'Meta Platforms (US)' → overlap
-    ['Alphabet (US)',           0.0380],  // matches Vested + PPFAS 'Alphabet (US)' → overlap
-    ['Broadcom (US)',           0.0310],  // not in Vested
-    ['Tesla (US)',              0.0280],  // not in Vested
-    ['Costco (US)',             0.0200],  // not in Vested
-    ['Advanced Micro Dev (US)', 0.0160], // AMD — not in Vested
-  ];
-  const qqqKnownW = qqqHoldings.reduce((s,[,w])=>s+w,0);
-  qqqHoldings.forEach(([stock, w]) => {
-    addExposure(stock, qqqValInr * w, 'QQQ (Nasdaq 100 ETF)');
-  });
-  addExposure('Unknown · QQQ (Nasdaq 100)', qqqValInr * (1 - qqqKnownW), 'QQQ (Nasdaq 100 ETF)');
+  // Axis ELSS (Groww): inv ₹14,000 · currNav/avgNav = 102.9776/43.1017
+  const axis_elss = 14000*(102.9776/43.1017);
+  [['Bajaj Finance',0.0743],['ICICI Bank',0.0698],['HDFC Bank',0.0612],
+   ['Avenue Supermarts',0.0534],['TCS',0.0487],['Infosys',0.0432],
+   ['Kotak Mahindra Bank',0.0398],['Reliance Industries',0.0374],
+   ['Pidilite Industries',0.0356],['SBI Life Insurance',0.0297],
+  ].forEach(([s,w])=>add(s,axis_elss*w,'Axis ELSS'));
+  add('Unknown — Axis ELSS',axis_elss*0.47,'Axis ELSS');
 
-  // ── Metals — Gold (ETF + SGB both = Gold exposure), Silver, Uranium, Copper ─
-  // Gold: two instruments, same underlying commodity → labelled as Gold
-  const goldEtfPrice  = gp('GOLDBEES.NS') || 132.71;
-  const goldEtfVal    = 125 * goldEtfPrice;
-  const sgbPrice      = gp('SGBJAN29IX-GB.NS') || 15898.95;
-  const sgbVal        = 4 * sgbPrice;
-  // Combine under 'Gold' to show total gold exposure, sources = ETF + SGB
-  // Both use same key 'Gold' → addExposure merges them, shows 2 sources
-  addExposure('Gold (ETF + SGB)', goldEtfVal, 'Gold ETF — GOLDBEES (₹' + goldEtfPrice.toFixed(0) + '/unit)');
-  addExposure('Gold (ETF + SGB)', sgbVal,     'Sovereign Gold Bond (₹' + Math.round(sgbPrice).toLocaleString('en-IN') + '/4g)');
+  // Invesco Smallcap (Coin): inv ₹29,998.50 · 43.56/43.48
+  const invesco = 29998.50*(43.56/43.48);
+  [['Kaynes Technology',0.0312],['Dodla Dairy',0.0287],['Aarti Pharmalabs',0.0265],
+   ['Ami Organics',0.0254],['Epigral',0.0248],['Gokul Agro',0.0241],
+   ['DCM Shriram',0.0238],['EFC India',0.0231],['Cera Sanitaryware',0.0224],['Emami',0.0218],
+  ].forEach(([s,w])=>add(s,invesco*w,'Invesco Smallcap'));
+  add('Unknown — Invesco Smallcap',invesco*0.52,'Invesco Smallcap');
+
+  // Edelweiss Mid Cap (Coin): inv ₹134,993.11 · 115.83/117.76
+  const edel = 134993.11*(115.83/117.76);
+  [['Indian Hotels',0.0423],['Persistent Systems',0.0398],['Dixon Technologies',0.0376],
+   ['Bharat Electronics',0.0354],['Coforge',0.0341],['Max Healthcare',0.0328],
+   ['Trent',0.0312],['Cummins India',0.0298],['BSE Ltd',0.0287],['KPIT Technologies',0.0274],
+  ].forEach(([s,w])=>add(s,edel*w,'Edelweiss Mid Cap'));
+  add('Unknown — Edelweiss Mid Cap',edel*0.49,'Edelweiss Mid Cap');
+
+  // Parag Parikh Flexi Cap (Coin): inv ₹104,994.77 · 90.4288/92.34
+  // NOTE: PPFAS holds US stocks (Alphabet, Meta, Microsoft) → these overlap with Vested direct
+  // Stock names MUST match Vested names exactly for overlap detection
+  const ppfas = 104994.77*(90.4288/92.34);
+  [['HDFC Bank',0.0876],['Coal India',0.0743],['Alphabet',0.0698],
+   ['Power Grid',0.0612],['ICICI Bank',0.0543],['Meta Platforms',0.0487],
+   ['ITC',0.0432],['Bajaj Holdings',0.0398],['Microsoft',0.0312],['Maruti Suzuki',0.0287],
+  ].forEach(([s,w])=>add(s,ppfas*w,'PPFAS Flexi Cap'));
+  add('Unknown — PPFAS Flexi Cap',ppfas*0.44,'PPFAS Flexi Cap');
+
+  // HDFC Flexi Cap (Coin): inv ₹30,098.56 · 2135.47/2137.68
+  const hdfc_f = 30098.56*(2135.47/2137.68);
+  [['HDFC Bank',0.0923],['ICICI Bank',0.0812],['Infosys',0.0654],
+   ['Axis Bank',0.0543],['Kotak Mahindra Bank',0.0487],['Reliance Industries',0.0432],
+   ['Bharti Airtel',0.0398],['TCS',0.0365],['L&T',0.0321],['Sun Pharma',0.0298],
+  ].forEach(([s,w])=>add(s,hdfc_f*w,'HDFC Flexi Cap'));
+  add('Unknown — HDFC Flexi Cap',hdfc_f*0.45,'HDFC Flexi Cap');
+
+  // Nippon Small Cap (Coin): inv ₹102,994.85 · 176.185/185.82
+  const nippon = 102994.85*(176.185/185.82);
+  [['KPIT Technologies',0.0398],['Dixon Technologies',0.0376],['Tube Investments',0.0354],
+   ['Bharat Electronics',0.0332],['Kirloskar Brothers',0.0318],['Apar Industries',0.0305],
+   ['Elgi Equipments',0.0287],['Techno Electric',0.0271],['Safari Industries',0.0258],['BEML',0.0246],
+  ].forEach(([s,w])=>add(s,nippon*w,'Nippon Small Cap'));
+  add('Unknown — Nippon Small Cap',nippon*0.51,'Nippon Small Cap');
+
+  // ── 5. USA STOCKS via Vested ─────────────────────────────────────────────
+  // IMPORTANT: names MUST match PPFAS names (Alphabet, Meta Platforms, Microsoft)
+  // and QQQ names to trigger overlap detection
+  add('Meta Platforms', 0.39139841*(gp('META')||654.07)*usd,  'USA — Vested (direct)');
+  add('NVIDIA',         1.11278727*(gp('NVDA')||184.77)*usd,  'USA — Vested (direct)');
+  add('Amazon',         1.62147801*(gp('AMZN')||217.09)*usd,  'USA — Vested (direct)');
+  add('Alphabet',       1.11771584*(gp('GOOGL')||312.92)*usd, 'USA — Vested (direct)');
+  add('Microsoft',      0.84416169*(gp('MSFT')||414.61)*usd,  'USA — Vested (direct)');
+
+  // ── 6. QQQ — Invesco Nasdaq-100 ETF (0.32882007 units via Vested) ────────
+  // QQQ tracks Nasdaq-100: 100 largest non-financial companies on Nasdaq
+  // Top holdings overlap with Vested direct stocks and PPFAS
+  const qqq = 0.32882007*(gp('QQQ')||608.24)*usd;
+  // Weights as of Mar 2026 (source: stockanalysis.com, invesco.com)
+  [['NVIDIA',0.0882],         // overlaps Vested direct
+   ['Apple',0.0749],          // only in QQQ (not held directly)
+   ['Microsoft',0.0592],      // overlaps Vested + PPFAS
+   ['Amazon',0.0544],         // overlaps Vested
+   ['Tesla',0.0391],          // only in QQQ
+   ['Meta Platforms',0.0370], // overlaps Vested + PPFAS
+   ['Alphabet',0.0340],       // overlaps Vested + PPFAS (GOOGL Class A)
+   ['Alphabet C',0.0330],     // Class C — separate share class (GOOG), QQQ only
+   ['Broadcom',0.0310],       // only in QQQ
+   ['Costco',0.0200],         // only in QQQ
+   ['Netflix',0.0187],        // only in QQQ
+   ['AMD',0.0181],            // only in QQQ
+   ['T-Mobile',0.0163],       // only in QQQ
+   ['Booking Holdings',0.0152],// only in QQQ
+   ['Pepsico',0.0133],        // only in QQQ
+  ].forEach(([s,w])=>add(s,qqq*w,'USA — QQQ Nasdaq-100 ETF'));
+  const qqqKnownW = 0.0882+0.0749+0.0592+0.0544+0.0391+0.0370+0.0340+0.0330+0.0310+0.0200+0.0187+0.0181+0.0163+0.0152+0.0133;
+  add('Unknown — QQQ (87 other Nasdaq-100 stocks)', qqq*(1-qqqKnownW), 'USA — QQQ Nasdaq-100 ETF');
+
+  // ── 7. METALS ────────────────────────────────────────────────────────────
+  // Gold: two instruments, same underlying commodity
+  // Using 'Gold' as the shared key → both sources appear in same pie slice
+  const goldEtf = (gp('GOLDBEES.NS')||132.71)*125;
+  const goldSgb = (gp('SGBJAN29IX-GB.NS')||15898.95)*4;
+  add('Gold', goldEtf, 'Gold — GOLDBEES ETF (₹'+(gp('GOLDBEES.NS')||132.71).toFixed(0)+'/unit × 125 units)');
+  add('Gold', goldSgb, 'Gold — Sovereign Gold Bond (₹'+(gp('SGBJAN29IX-GB.NS')||15898.95).toFixed(0)+'/bond × 4 bonds)');
 
   // Silver ETF
-  const silverPrice = gp('SILVERBEES.NS') || 251.69;
-  const silverVal   = 75 * silverPrice;
-  addExposure('Silver (SILVERBEES)', silverVal, 'Silver ETF — SILVERBEES (₹' + silverPrice.toFixed(0) + '/unit)');
+  add('Silver', (gp('SILVERBEES.NS')||251.69)*75,
+    'Silver — SILVERBEES ETF (₹'+(gp('SILVERBEES.NS')||251.69).toFixed(0)+'/unit × 75 units)');
 
   // Uranium ETF (USD)
-  const uraPrice  = gp('URA') || 52.31;
-  const uraValInr = 4.09404319 * uraPrice * usdInr;
-  addExposure('Uranium ETF (URA)', uraValInr, 'Uranium ETF — URA ($' + uraPrice.toFixed(2) + ' / ₹' + Math.round(uraPrice*usdInr).toLocaleString('en-IN') + ')');
+  const uraP = gp('URA')||52.31;
+  add('Uranium ETF (URA)',  4.09404319*uraP*usd,
+    'URA — Global X Uranium ETF ($'+uraP.toFixed(2)+' × 4.09 units / ₹'+Math.round(uraP*usd).toLocaleString('en-IN')+'/unit)');
 
   // Copper Miners ETF (USD)
-  const copxPrice  = gp('COPX') || 83.06;
-  const copxValInr = 2.9204089 * copxPrice * usdInr;
-  addExposure('Copper Miners ETF (COPX)', copxValInr, 'Copper ETF — COPX ($' + copxPrice.toFixed(2) + ' / ₹' + Math.round(copxPrice*usdInr).toLocaleString('en-IN') + ')');
+  const copxP = gp('COPX')||83.06;
+  add('Copper Miners ETF (COPX)', 2.9204089*copxP*usd,
+    'COPX — Global X Copper Miners ETF ($'+copxP.toFixed(2)+' × 2.92 units / ₹'+Math.round(copxP*usd).toLocaleString('en-IN')+'/unit)');
 
-  // Sort by value
   return Object.entries(eff).sort((a,b) => b[1].value - a[1].value);
 }
+
 
 let xrayData = [];
 let xrayShowAll = true;
@@ -1743,12 +1787,12 @@ function renderXRay() {
     { l:'Unknown / diversified', v:ri(totalUnknown) + ' (' + (totalUnknown/total*100).toFixed(0) + '%)' },
     { l:'Unique stocks identified', v:known.length },
     { l:'Stocks with overlap', v:known.filter(([,d]) => d.sources.length > 1).length },
-    { l:'Vehicles analysed', v:'12 (2 ETF + 7 MF + Direct India + USA + Metals)' },
+    { l:'Vehicles analysed', v:'14 vehicles (2 Indian ETF + 7 MF + India Direct + QQQ + 5 Vested + 5 Metals)' },
   ].map(s => `<div class="hstat"><div class="hstat-label">${s.l}</div><div class="hstat-val" style="font-size:15px;">${s.v}</div></div>`).join('');
 
   // Coverage note
   document.getElementById('xray-coverage-note').innerHTML =
-    `<strong style="color:var(--text)">Coverage note:</strong> Includes Indian direct stocks, 2 ETFs, 7 MFs, 6 USA stocks, and 5 metals. MF top-10 holdings cover ~48–56% of fund NAV. ` +
+    `<strong style="color:var(--text)">Coverage note:</strong> Indian direct (13 stocks) + 2 index ETFs + 7 MFs + 5 USA direct via Vested + QQQ Nasdaq-100 ETF (15 holdings mapped) + 5 metals. MF top-10 holdings cover ~48–56% of fund NAV. ` +
     `Nifty 50 ETF covers ~78% of index, Midcap ETF covers ~32%. ` +
     `USA and metals are 100% covered (exact holdings). ` +
     `The remaining <strong style="color:var(--warn)">${ri(totalUnknown)} (${(totalUnknown/total*100).toFixed(0)}%)</strong> ` +
@@ -1840,7 +1884,11 @@ function buildPieChart(all, total) {
   _pieColors = data.map(([s,d], i) => {
     if (s.startsWith('Unknown')) return 'rgba(148,163,184,0.3)';
     const domV = d.sources.reduce((a,b) => a.value > b.value ? a : b).vehicle;
-    return VEHICLE_COLORS[domV] || Object.entries(VEHICLE_COLORS).find(([k])=>domV.startsWith(k))?.[1] || PALETTE[i % PALETTE.length];
+    // exact match first, then prefix match for dynamic labels
+    const exact = VEHICLE_COLORS[domV];
+    if (exact) return exact;
+    const prefix = Object.entries(VEHICLE_COLORS).find(([k])=>domV.startsWith(k));
+    return prefix?.[1] || PALETTE[i % PALETTE.length];
   });
 
   // Destroy existing chart
