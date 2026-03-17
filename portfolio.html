@@ -552,14 +552,24 @@ function showPage(name, el) {
   document.querySelectorAll('.page-tab').forEach(t => t.classList.remove('active'));
   document.getElementById('page-' + name).classList.add('active');
   el.classList.add('active');
-  if (name === 'history') {
-    if (!historyLoaded) {
-      loadHistory();
-    } else if (allData.length) {
-      // Re-render charts - they need visible canvas to size correctly
-      setTimeout(() => { renderHCharts(); renderAssetChart(); }, 50);
+  setTimeout(() => {
+    if (name === 'history') {
+      if (!historyLoaded) {
+        loadHistory();
+      } else if (allData.length) {
+        renderHeroStats();
+        renderHCharts();
+        renderAssetChart();
+        renderRecentTable();
+        renderAnnualTable();
+      }
+    } else if (name === 'portfolio') {
+      renderAll();
+      Chart.instances && Object.values(Chart.instances).forEach(c => {
+        try { c.resize(); } catch(e) {}
+      });
     }
-  }
+  }, 30);
 }
 
 function setProgress(pct, msg) {
@@ -917,7 +927,6 @@ function drawPie(data,total) {
 }
 
 function showTab(n,el) {
-  // Scope to portfolio page only (history page has no .sec tabs)
   const portfolioPage = document.getElementById('page-portfolio');
   if (portfolioPage) {
     portfolioPage.querySelectorAll('.sec').forEach(s=>s.classList.remove('active'));
@@ -926,8 +935,16 @@ function showTab(n,el) {
   const target = document.getElementById('sec-'+n);
   if (target) target.classList.add('active');
   if (el) el.classList.add('active');
-  // X-Ray special render
-  if (n === 'xray') { setTimeout(renderXRay, 50); }
+  // Re-render content when tab becomes visible
+  setTimeout(() => {
+    if (n === 'xray') { renderXRay(); return; }
+    // For all other tabs: re-run renderAll so tables are always fresh
+    // Also trigger Chart.js resize for any charts that may have been hidden
+    Chart.instances && Object.values(Chart.instances).forEach(c => {
+      try { c.resize(); } catch(e) {}
+    });
+    renderAll();
+  }, 20);
 }
 
 const PXIES=[u=>`https://api.allorigins.win/raw?url=${encodeURIComponent(u)}`,u=>`https://corsproxy.io/?${encodeURIComponent(u)}`];
@@ -1483,11 +1500,13 @@ function renderRecentTable() {
 async function init() {
   setProgress(10,'Fetching FX rates...');
   await fetchFXRates();
-  setProgress(30,'Rendering portfolio...');
-  renderAll();
-  setProgress(50,'Fetching live prices...');
+  setProgress(80,'Loading...');
+  // Show app FIRST so DOM elements are visible and have dimensions
   document.getElementById('loading-screen').style.display='none';
   document.getElementById('app').style.display='block';
+  // Small delay to let browser paint before rendering charts/tables
+  await new Promise(r => setTimeout(r, 30));
+  renderAll();
   fetchLivePrices();
 }
 
@@ -1557,7 +1576,8 @@ const FUND_COMP = {
 
 // Vehicle color map
 const VEHICLE_COLORS = {
-  'Direct':                 '#6ee7b7',
+  'Direct — India':         '#6ee7b7',
+  'Direct':                 '#6ee7b7',  // fallback
   'Nifty 50 ETF':           '#60a5fa',
   'Nifty Midcap 150 ETF':   '#a78bfa',
   'Mirae Asset ELSS':       '#fbbf24',
@@ -1567,6 +1587,8 @@ const VEHICLE_COLORS = {
   'Parag Parikh Flexi Cap': '#e879f9',
   'HDFC Flexi Cap':         '#67e8f9',
   'Nippon Small Cap':       '#f87171',
+  'USA Stocks (Groww)':     '#38bdf8',
+  'Metals':                 '#fcd34d',
 };
 
 function computeXRay() {
@@ -1609,8 +1631,8 @@ function computeXRay() {
     eff[stock].sources.push({ vehicle, value:val });
   }
 
-  // Direct holdings
-  Object.entries(direct).forEach(([s,v]) => addExposure(s, v, 'Direct'));
+  // Direct Indian equity holdings
+  Object.entries(direct).forEach(([s,v]) => addExposure(s, v, 'Direct — India'));
 
   // ETF + MF passthroughs
   Object.entries(FUND_COMP).forEach(([fkey, fund]) => {
@@ -1621,9 +1643,43 @@ function computeXRay() {
       addExposure(stock, fval * w, fund.name);
       knownW += w;
     });
-    // Unknown bucket
     const unknownVal = fval * (1 - knownW);
     addExposure('Unknown · ' + fund.name, unknownVal, fund.name);
+  });
+
+  // ── USA stocks (converted to INR) ──────────────────────────────────────────
+  const usHoldings = [
+    { sym:'META',  name:'Meta Platforms',    qty:0.39139841, avg:654.07  },
+    { sym:'NVDA',  name:'NVIDIA',            qty:1.11278727, avg:184.77  },
+    { sym:'QQQ',   name:'Nasdaq 100 ETF',    qty:0.32882007, avg:607.77  },
+    { sym:'AMZN',  name:'Amazon',            qty:1.62147801, avg:214.33  },
+    { sym:'GOOGL', name:'Alphabet',          qty:1.11771584, avg:307.04  },
+    { sym:'MSFT',  name:'Microsoft',         qty:0.84416169, avg:405.76  },
+  ];
+  const usdInr = FX.usd || 92.50;
+  usHoldings.forEach(h => {
+    const priceUsd = gp(h.sym) || h.avg;
+    const valInr   = h.qty * priceUsd * usdInr;
+    const label    = h.name + ' ($' + priceUsd.toFixed(0) + ' · ₹' + Math.round(valInr/h.qty).toLocaleString('en-IN') + '/sh)';
+    addExposure(label, valInr, 'USA Stocks (Groww)');
+  });
+
+  // ── Metals (INR + USD converted) ──────────────────────────────────────────
+  const metalHoldings = [
+    { sym:'GOLDBEES.NS',       name:'Gold ETF',        qty:125,         avg:132.71, ccy:'INR' },
+    { sym:'SILVERBEES.NS',     name:'Silver ETF',      qty:75,          avg:251.69, ccy:'INR' },
+    { sym:'SGBJAN29IX-GB.NS',  name:'Sov Gold Bond',   qty:4,           avg:15898.95,ccy:'INR' },
+    { sym:'URA',               name:'Uranium ETF (URA)',qty:4.09404319, avg:52.31,  ccy:'USD' },
+    { sym:'COPX',              name:'Copper ETF (COPX)',qty:2.9204089,  avg:83.06,  ccy:'USD' },
+  ];
+  metalHoldings.forEach(h => {
+    const price  = gp(h.sym) || h.avg;
+    const valInr = h.ccy === 'USD' ? h.qty * price * usdInr : h.qty * price;
+    const dispPrice = h.ccy === 'USD'
+      ? '$' + price.toFixed(2) + ' / ₹' + Math.round(price * usdInr).toLocaleString('en-IN')
+      : '₹' + price.toFixed(2);
+    const label = h.name + ' (' + dispPrice + ')';
+    addExposure(label, valInr, 'Metals');
   });
 
   // Sort by value
@@ -1648,16 +1704,17 @@ function renderXRay() {
     { l:'Unknown / diversified', v:ri(totalUnknown) + ' (' + (totalUnknown/total*100).toFixed(0) + '%)' },
     { l:'Unique stocks identified', v:known.length },
     { l:'Stocks with overlap', v:known.filter(([,d]) => d.sources.length > 1).length },
-    { l:'Vehicles analysed', v:'9 (2 ETF + 7 MF + Direct)' },
+    { l:'Vehicles analysed', v:'12 (2 ETF + 7 MF + Direct India + USA + Metals)' },
   ].map(s => `<div class="hstat"><div class="hstat-label">${s.l}</div><div class="hstat-val" style="font-size:15px;">${s.v}</div></div>`).join('');
 
   // Coverage note
   document.getElementById('xray-coverage-note').innerHTML =
-    `<strong style="color:var(--text)">Coverage note:</strong> MF top-10 holdings cover ~48–56% of each fund's NAV. ` +
-    `ETF (Nifty 50) covers ~78% of index weight. Midcap ETF covers ~32%. ` +
+    `<strong style="color:var(--text)">Coverage note:</strong> Includes Indian direct stocks, 2 ETFs, 7 MFs, 6 USA stocks, and 5 metals. MF top-10 holdings cover ~48–56% of fund NAV. ` +
+    `Nifty 50 ETF covers ~78% of index, Midcap ETF covers ~32%. ` +
+    `USA and metals are 100% covered (exact holdings). ` +
     `The remaining <strong style="color:var(--warn)">${ri(totalUnknown)} (${(totalUnknown/total*100).toFixed(0)}%)</strong> ` +
-    `is spread across hundreds of smaller holdings and shown as "Unknown" below. ` +
-    `MF data as of Mar 2025 — update manually when funds rebalance significantly.`;
+    `is spread across hundreds of smaller MF holdings shown as "Unknown" below. ` +
+    `MF data as of Mar 2025 — update manually when funds rebalance.`;
 
   renderTop20(xrayShowAll);
   buildPieChart(xrayData, total);
@@ -1918,6 +1975,152 @@ function buildPieLegend(data, total, colors) {
     </div>`;
   }).join('');
 }
+
+function renderOverlap(overlapping) {
+  const wrap = document.getElementById('xray-overlap');
+  if (!wrap) return;
+  if (!overlapping.length) { wrap.innerHTML = '<div style="color:var(--muted);font-size:12px;">No overlapping holdings found.</div>'; return; }
+  const sorted = [...overlapping].sort((a,b) => b[1].sources.length - a[1].sources.length);
+  wrap.innerHTML = sorted.slice(0, 15).map(([stock, data]) => {
+    const total = data.value;
+    const vehicles = data.sources;
+    return `<div style="margin-bottom:14px;">
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:5px;">
+        <span style="font-size:13px;font-weight:500;">${stock}</span>
+        <span style="font-size:11px;color:var(--muted);">${ri(total)} total · <span style="color:var(--warn)">${vehicles.length} vehicles</span></span>
+      </div>
+      <div style="display:flex;gap:2px;height:18px;border-radius:4px;overflow:hidden;">
+        ${vehicles.map(s => {
+          const pct = s.value/total*100;
+          const color = VEHICLE_COLORS[s.vehicle]||'#94a3b8';
+          return `<div style="flex:${pct};background:${color};" title="${s.vehicle}: ${ri(s.value)} (${pct.toFixed(1)}%)"></div>`;
+        }).join('')}
+      </div>
+      <div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:4px;">
+        ${vehicles.map(s=>`<span style="font-size:10px;color:var(--muted);">
+          <span style="display:inline-block;width:7px;height:7px;border-radius:2px;background:${VEHICLE_COLORS[s.vehicle]||'#94a3b8'};margin-right:3px;"></span>
+          ${s.vehicle.split(' ').slice(0,2).join(' ')}: ${ri(s.value)}
+        </span>`).join('')}
+      </div>
+    </div>`;
+  }).join('<hr style="border:none;border-top:1px solid var(--border);margin:4px 0;">');
+}
+
+function renderVehicles() {
+  const usdInr = FX.usd || 92.50;
+  const mfV = (inv,nav,avg) => inv*(nav/avg);
+  const rows = [
+    { name:'Direct — Indian Stocks', items:[
+        {s:'Bajaj Finance',    v:(gp('BAJFINANCE.NS')||893.65)*141},
+        {s:'HDFC Bank',        v:(gp('HDFCBANK.NS')||833.95)*109},
+        {s:'Reliance',         v:(gp('RELIANCE.NS')||1390.20)*42},
+        {s:'L&T',              v:(gp('LARTOU.NS')||3838.80)*12},
+        {s:'KPIT Technologies',v:(gp('KPITTECH.NS')||683.90)*65},
+        {s:'Affle (India)',    v:(gp('AFFLE.NS')||1411.40)*38},
+        {s:'Others',           v:0},
+      ], get total(){ return this.items.reduce((s,i)=>s+i.v,0); }
+    },
+    { name:'USA Stocks (Groww)', items:[
+        {s:'Meta (META)',     v:0.39139841*(gp('META')||654.07)*usdInr},
+        {s:'NVIDIA (NVDA)',   v:1.11278727*(gp('NVDA')||184.77)*usdInr},
+        {s:'Nasdaq ETF (QQQ)',v:0.32882007*(gp('QQQ')||607.77)*usdInr},
+        {s:'Amazon (AMZN)',   v:1.62147801*(gp('AMZN')||214.33)*usdInr},
+        {s:'Alphabet (GOOGL)',v:1.11771584*(gp('GOOGL')||307.04)*usdInr},
+        {s:'Microsoft (MSFT)',v:0.84416169*(gp('MSFT')||405.76)*usdInr},
+      ], get total(){ return this.items.reduce((s,i)=>s+i.v,0); }
+    },
+    { name:'Metals', items:[
+        {s:'Gold ETF (GOLDBEES)',      v:125*(gp('GOLDBEES.NS')||132.71)},
+        {s:'Silver ETF (SILVERBEES)',  v:75*(gp('SILVERBEES.NS')||251.69)},
+        {s:'SGB Jan 2029',            v:4*(gp('SGBJAN29IX-GB.NS')||15898.95)},
+        {s:'Uranium ETF (URA)',        v:4.09404319*(gp('URA')||52.31)*usdInr},
+        {s:'Copper ETF (COPX)',        v:2.9204089*(gp('COPX')||83.06)*usdInr},
+      ], get total(){ return this.items.reduce((s,i)=>s+i.v,0); }
+    },
+  ];
+  // Add MF/ETF rows
+  const mfRows = [
+    { name:'Nifty 50 ETF', items:[
+      {s:'HDFC Bank',   v:(gp('NIFTYBEES.NS')||268.35)*380*0.1317},
+      {s:'Reliance',    v:(gp('NIFTYBEES.NS')||268.35)*380*0.0942},
+      {s:'ICICI Bank',  v:(gp('NIFTYBEES.NS')||268.35)*380*0.0793},
+      {s:'Infosys',     v:(gp('NIFTYBEES.NS')||268.35)*380*0.0596},
+      {s:'TCS',         v:(gp('NIFTYBEES.NS')||268.35)*380*0.0440},
+      {s:'Others (index)', v:(gp('NIFTYBEES.NS')||268.35)*380*0.5432},
+    ], get total(){ return (gp('NIFTYBEES.NS')||268.35)*380; } },
+    { name:'Midcap 150 ETF', items:[
+      {s:'Dixon Tech',       v:(gp('MID150BEES.NS')||21.28)*4143*0.0192},
+      {s:'KPIT Technologies',v:(gp('MID150BEES.NS')||21.28)*4143*0.0143},
+      {s:'BSE Ltd',          v:(gp('MID150BEES.NS')||21.28)*4143*0.0146},
+      {s:'Others (index)',   v:(gp('MID150BEES.NS')||21.28)*4143*0.6819},
+    ], get total(){ return (gp('MID150BEES.NS')||21.28)*4143; } },
+    { name:'Mirae ELSS', items:[
+      {s:'HDFC Bank',  v:mfV(70997,53.437,26.8591)*0.0812},
+      {s:'ICICI Bank', v:mfV(70997,53.437,26.8591)*0.0731},
+      {s:'Infosys',    v:mfV(70997,53.437,26.8591)*0.0598},
+      {s:'Others',     v:mfV(70997,53.437,26.8591)*0.7859},
+    ], get total(){ return mfV(70997,53.437,26.8591); } },
+    { name:'Edelweiss Mid Cap', items:[
+      {s:'Indian Hotels',    v:mfV(134993.11,115.83,117.76)*0.0423},
+      {s:'Persistent Sys',   v:mfV(134993.11,115.83,117.76)*0.0398},
+      {s:'Dixon Tech',       v:mfV(134993.11,115.83,117.76)*0.0376},
+      {s:'Others',           v:mfV(134993.11,115.83,117.76)*0.8803},
+    ], get total(){ return mfV(134993.11,115.83,117.76); } },
+    { name:'Parag Parikh Flexi Cap', items:[
+      {s:'HDFC Bank',       v:mfV(104994.77,90.4288,92.34)*0.0876},
+      {s:'Alphabet US',     v:mfV(104994.77,90.4288,92.34)*0.0698},
+      {s:'Power Grid',      v:mfV(104994.77,90.4288,92.34)*0.0612},
+      {s:'Others',          v:mfV(104994.77,90.4288,92.34)*0.7814},
+    ], get total(){ return mfV(104994.77,90.4288,92.34); } },
+  ];
+
+  const allRows = [...rows, ...mfRows];
+  document.getElementById('xray-vehicles').innerHTML = allRows.map(row => {
+    const rowTotal = row.total;
+    const max = Math.max(...row.items.map(it=>it.v));
+    return `<div style="margin-bottom:16px;">
+      <div style="font-size:12px;font-weight:500;color:var(--text);margin-bottom:7px;">${row.name} <span style="color:var(--muted);font-weight:400;">· ${ri(rowTotal)}</span></div>
+      ${row.items.filter(it=>it.v>0).map(it => {
+        const pct = it.v/rowTotal*100;
+        const isOther = it.s.includes('Other') || it.s.includes('index');
+        return `<div style="display:flex;align-items:center;gap:8px;margin-bottom:4px;">
+          <div style="width:140px;font-size:11px;color:${isOther?'var(--muted)':'var(--text)'};overflow:hidden;text-overflow:ellipsis;white-space:nowrap;flex-shrink:0;">${it.s}</div>
+          <div style="flex:1;height:12px;background:var(--muted2);border-radius:2px;overflow:hidden;">
+            <div style="height:100%;width:${max>0?(it.v/max*100).toFixed(1):0}%;background:${isOther?'rgba(148,163,184,0.3)':'#6ee7b7'};border-radius:2px;"></div>
+          </div>
+          <div style="width:65px;text-align:right;font-size:10px;color:var(--muted);">${ri(it.v)}</div>
+          <div style="width:36px;text-align:right;font-size:10px;color:var(--muted2);">${pct.toFixed(1)}%</div>
+        </div>`;
+      }).join('')}
+    </div>`;
+  }).join('<hr style="border:none;border-top:1px solid var(--border);margin:8px 0 16px;">');
+}
+
+function renderXRayTable(known, unknown, total) {
+  const allRows = [
+    ...known.map(([s,d],i) => ({rank:i+1, stock:s, data:d, isUnknown:false})),
+    ...unknown.map(([s,d],i) => ({rank:known.length+i+1, stock:s.replace('Unknown · ',''), data:d, isUnknown:true})),
+  ];
+  document.getElementById('xray-table').innerHTML = allRows.map(row => {
+    const {rank, stock, data, isUnknown} = row;
+    const overlap = !isUnknown && data.sources.length > 1;
+    const srcHTML = data.sources.map(s =>
+      `<span style="font-size:10px;background:${(VEHICLE_COLORS[s.vehicle]||'#94a3b8')}22;color:${VEHICLE_COLORS[s.vehicle]||'#94a3b8'};padding:1px 6px;border-radius:3px;margin-right:3px;white-space:nowrap;">${s.vehicle.split(' ').slice(0,2).join(' ')}: ${ri(s.value)}</span>`
+    ).join('');
+    return `<tr style="${isUnknown?'opacity:.6':''}">
+      <td style="color:var(--muted);font-size:11px;">${rank}</td>
+      <td>
+        <div style="font-weight:500;${isUnknown?'font-style:italic;color:var(--muted)':''}">${stock}</div>
+        ${overlap?`<div style="font-size:10px;color:var(--warn);margin-top:1px;">${data.sources.length} vehicles · overlap</div>`:''}
+      </td>
+      <td class="r"><strong>${ri(data.value)}</strong></td>
+      <td class="r">${(data.value/total*100).toFixed(2)}%</td>
+      <td class="r">${data.sources.length}</td>
+      <td style="padding:6px 10px;">${srcHTML}</td>
+    </tr>`;
+  }).join('');
+}
+
 
 </script>
 </body>
