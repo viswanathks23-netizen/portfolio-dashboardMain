@@ -1587,8 +1587,14 @@ const VEHICLE_COLORS = {
   'Parag Parikh Flexi Cap': '#e879f9',
   'HDFC Flexi Cap':         '#67e8f9',
   'Nippon Small Cap':       '#f87171',
-  'USA Stocks (Groww)':     '#38bdf8',
-  'Metals':                 '#fcd34d',
+  'USA Stocks (Vested)':     '#38bdf8',
+  'QQQ (Nasdaq 100 ETF)':   '#7dd3fc',
+  'Gold ETF':                '#fcd34d',
+  'Sovereign Gold Bond':     '#f59e0b',
+  'Silver ETF':              '#e2e8f0',
+  'Uranium ETF (URA)':      '#a3e635',
+  'Copper ETF (COPX)':      '#fb923c',
+  'Metals':                 '#fcd34d',  // fallback
 };
 
 function computeXRay() {
@@ -1647,40 +1653,73 @@ function computeXRay() {
     addExposure('Unknown · ' + fund.name, unknownVal, fund.name);
   });
 
-  // ── USA stocks (converted to INR) ──────────────────────────────────────────
-  const usHoldings = [
-    { sym:'META',  name:'Meta Platforms',    qty:0.39139841, avg:654.07  },
-    { sym:'NVDA',  name:'NVIDIA',            qty:1.11278727, avg:184.77  },
-    { sym:'QQQ',   name:'Nasdaq 100 ETF',    qty:0.32882007, avg:607.77  },
-    { sym:'AMZN',  name:'Amazon',            qty:1.62147801, avg:214.33  },
-    { sym:'GOOGL', name:'Alphabet',          qty:1.11771584, avg:307.04  },
-    { sym:'MSFT',  name:'Microsoft',         qty:0.84416169, avg:405.76  },
-  ];
   const usdInr = FX.usd || 92.50;
-  usHoldings.forEach(h => {
+
+  // ── USA direct stocks via Vested ─────────────────────────────────────────
+  // Note: GOOGL/META/MSFT also appear in PPFAS; QQQ overlaps NVDA/AMZN/GOOGL/META/MSFT
+  const vestedDirect = [
+    { sym:'META',  name:'Meta Platforms (US)',  qty:0.39139841, avg:638.12 },
+    { sym:'NVDA',  name:'NVIDIA (US)',           qty:1.11278727, avg:179.73 },
+    { sym:'AMZN',  name:'Amazon (US)',           qty:1.62147801, avg:217.09 },
+    { sym:'GOOGL', name:'Alphabet (US)',         qty:1.11771584, avg:312.92 },
+    { sym:'MSFT',  name:'Microsoft (US)',        qty:0.84416169, avg:414.61 },
+  ];
+  vestedDirect.forEach(h => {
     const priceUsd = gp(h.sym) || h.avg;
     const valInr   = h.qty * priceUsd * usdInr;
-    const label    = h.name + ' ($' + priceUsd.toFixed(0) + ' · ₹' + Math.round(valInr/h.qty).toLocaleString('en-IN') + '/sh)';
-    addExposure(label, valInr, 'USA Stocks (Groww)');
+    const dispUsd  = '$' + priceUsd.toFixed(0);
+    const dispInr  = '₹' + Math.round(priceUsd * usdInr).toLocaleString('en-IN');
+    addExposure(h.name + ' (' + dispUsd + ' / ' + dispInr + ')', valInr, 'USA Stocks (Vested)');
   });
 
-  // ── Metals (INR + USD converted) ──────────────────────────────────────────
-  const metalHoldings = [
-    { sym:'GOLDBEES.NS',       name:'Gold ETF',        qty:125,         avg:132.71, ccy:'INR' },
-    { sym:'SILVERBEES.NS',     name:'Silver ETF',      qty:75,          avg:251.69, ccy:'INR' },
-    { sym:'SGBJAN29IX-GB.NS',  name:'Sov Gold Bond',   qty:4,           avg:15898.95,ccy:'INR' },
-    { sym:'URA',               name:'Uranium ETF (URA)',qty:4.09404319, avg:52.31,  ccy:'USD' },
-    { sym:'COPX',              name:'Copper ETF (COPX)',qty:2.9204089,  avg:83.06,  ccy:'USD' },
+  // ── QQQ = Nasdaq 100 ETF (passthrough — overlaps with above direct stocks) ──
+  const qqqPriceUsd = gp('QQQ') || 608.24;
+  const qqqValInr   = 0.32882007 * qqqPriceUsd * usdInr;
+  // Top 10 Nasdaq 100 holdings (covers ~51% of QQQ)
+  // QQQ holdings — names MUST match Vested labels exactly for overlap detection
+  const qqqHoldings = [
+    ['Apple (US)',              0.0895],  // not in Vested direct
+    ['NVIDIA (US)',             0.0820],  // matches Vested 'NVIDIA (US)' → shows overlap
+    ['Microsoft (US)',          0.0780],  // matches Vested + PPFAS 'Microsoft (US)' → overlap
+    ['Amazon (US)',             0.0590],  // matches Vested 'Amazon (US)' → overlap
+    ['Meta Platforms (US)',     0.0480],  // matches Vested + PPFAS 'Meta Platforms (US)' → overlap
+    ['Alphabet (US)',           0.0380],  // matches Vested + PPFAS 'Alphabet (US)' → overlap
+    ['Broadcom (US)',           0.0310],  // not in Vested
+    ['Tesla (US)',              0.0280],  // not in Vested
+    ['Costco (US)',             0.0200],  // not in Vested
+    ['Advanced Micro Dev (US)', 0.0160], // AMD — not in Vested
   ];
-  metalHoldings.forEach(h => {
-    const price  = gp(h.sym) || h.avg;
-    const valInr = h.ccy === 'USD' ? h.qty * price * usdInr : h.qty * price;
-    const dispPrice = h.ccy === 'USD'
-      ? '$' + price.toFixed(2) + ' / ₹' + Math.round(price * usdInr).toLocaleString('en-IN')
-      : '₹' + price.toFixed(2);
-    const label = h.name + ' (' + dispPrice + ')';
-    addExposure(label, valInr, 'Metals');
+  const qqqKnownW = qqqHoldings.reduce((s,[,w])=>s+w,0);
+  qqqHoldings.forEach(([stock, w]) => {
+    addExposure(stock, qqqValInr * w, 'QQQ (Nasdaq 100 ETF)');
   });
+  addExposure('Unknown · QQQ (Nasdaq 100)', qqqValInr * (1 - qqqKnownW), 'QQQ (Nasdaq 100 ETF)');
+
+  // ── Metals — Gold (ETF + SGB both = Gold exposure), Silver, Uranium, Copper ─
+  // Gold: two instruments, same underlying commodity → labelled as Gold
+  const goldEtfPrice  = gp('GOLDBEES.NS') || 132.71;
+  const goldEtfVal    = 125 * goldEtfPrice;
+  const sgbPrice      = gp('SGBJAN29IX-GB.NS') || 15898.95;
+  const sgbVal        = 4 * sgbPrice;
+  // Combine under 'Gold' to show total gold exposure, sources = ETF + SGB
+  // Both use same key 'Gold' → addExposure merges them, shows 2 sources
+  addExposure('Gold (ETF + SGB)', goldEtfVal, 'Gold ETF — GOLDBEES (₹' + goldEtfPrice.toFixed(0) + '/unit)');
+  addExposure('Gold (ETF + SGB)', sgbVal,     'Sovereign Gold Bond (₹' + Math.round(sgbPrice).toLocaleString('en-IN') + '/4g)');
+
+  // Silver ETF
+  const silverPrice = gp('SILVERBEES.NS') || 251.69;
+  const silverVal   = 75 * silverPrice;
+  addExposure('Silver (SILVERBEES)', silverVal, 'Silver ETF — SILVERBEES (₹' + silverPrice.toFixed(0) + '/unit)');
+
+  // Uranium ETF (USD)
+  const uraPrice  = gp('URA') || 52.31;
+  const uraValInr = 4.09404319 * uraPrice * usdInr;
+  addExposure('Uranium ETF (URA)', uraValInr, 'Uranium ETF — URA ($' + uraPrice.toFixed(2) + ' / ₹' + Math.round(uraPrice*usdInr).toLocaleString('en-IN') + ')');
+
+  // Copper Miners ETF (USD)
+  const copxPrice  = gp('COPX') || 83.06;
+  const copxValInr = 2.9204089 * copxPrice * usdInr;
+  addExposure('Copper Miners ETF (COPX)', copxValInr, 'Copper ETF — COPX ($' + copxPrice.toFixed(2) + ' / ₹' + Math.round(copxPrice*usdInr).toLocaleString('en-IN') + ')');
 
   // Sort by value
   return Object.entries(eff).sort((a,b) => b[1].value - a[1].value);
@@ -1801,7 +1840,7 @@ function buildPieChart(all, total) {
   _pieColors = data.map(([s,d], i) => {
     if (s.startsWith('Unknown')) return 'rgba(148,163,184,0.3)';
     const domV = d.sources.reduce((a,b) => a.value > b.value ? a : b).vehicle;
-    return VEHICLE_COLORS[domV] || PALETTE[i % PALETTE.length];
+    return VEHICLE_COLORS[domV] || Object.entries(VEHICLE_COLORS).find(([k])=>domV.startsWith(k))?.[1] || PALETTE[i % PALETTE.length];
   });
 
   // Destroy existing chart
@@ -1992,7 +2031,7 @@ function renderOverlap(overlapping) {
       <div style="display:flex;gap:2px;height:18px;border-radius:4px;overflow:hidden;">
         ${vehicles.map(s => {
           const pct = s.value/total*100;
-          const color = VEHICLE_COLORS[s.vehicle]||'#94a3b8';
+          const color = VEHICLE_COLORS[s.vehicle] || Object.entries(VEHICLE_COLORS).find(([k])=>s.vehicle.startsWith(k))?.[1] || '#94a3b8';
           return `<div style="flex:${pct};background:${color};" title="${s.vehicle}: ${ri(s.value)} (${pct.toFixed(1)}%)"></div>`;
         }).join('')}
       </div>
@@ -2020,7 +2059,7 @@ function renderVehicles() {
         {s:'Others',           v:0},
       ], get total(){ return this.items.reduce((s,i)=>s+i.v,0); }
     },
-    { name:'USA Stocks (Groww)', items:[
+    { name:'USA Stocks (Vested)', items:[
         {s:'Meta (META)',     v:0.39139841*(gp('META')||654.07)*usdInr},
         {s:'NVIDIA (NVDA)',   v:1.11278727*(gp('NVDA')||184.77)*usdInr},
         {s:'Nasdaq ETF (QQQ)',v:0.32882007*(gp('QQQ')||607.77)*usdInr},
